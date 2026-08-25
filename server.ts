@@ -98,12 +98,22 @@ app.post('/api/gemini/scan-label', async (req, res) => {
 
     if (!openRouterRes.ok) {
       const errText = await openRouterRes.text();
-      console.error('OpenRouter API Error:', errText);
-      let errorMessage = 'OpenRouter extraction failed';
+      console.error(`[OpenRouter Error] HTTP ${openRouterRes.status}:`, errText);
+      let errorMessage = `OpenRouter HTTP ${openRouterRes.status}`;
       try {
         const errJson = JSON.parse(errText);
-        if (errJson?.error?.message) {
-          errorMessage = errJson.error.message;
+        const raw = errJson?.error?.metadata?.raw;
+        const msg = errJson?.error?.message;
+        const hint = errJson?.error?.metadata?.remedy_hint;
+
+        if (raw) {
+          errorMessage = raw;
+        } else if (msg && msg !== 'Provider returned error') {
+          errorMessage = msg;
+        } else if (hint) {
+          errorMessage = `${msg || 'Provider error'}: ${hint}`;
+        } else if (msg) {
+          errorMessage = msg;
         }
       } catch {}
       return res.status(openRouterRes.status).json({
