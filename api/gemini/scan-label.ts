@@ -23,8 +23,8 @@ export default async function handler(req: any, res: any) {
     // Extract pure Base64 without data URI prefix
     const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '').trim();
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    const openRouterApiKey = process.env.OPENROUTER_API_KEY || process.env.GEMINI_API_KEY;
+    if (!openRouterApiKey) {
       // Fallback mock scan if no API key is provided
       return res.status(200).json({
         drug_name: 'Metformin',
@@ -37,49 +37,57 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // Forward request to Gemini API endpoint
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${apiKey}`;
-
-    const geminiPayload = {
-      contents: [
-        {
-          parts: [
-            {
-              inlineData: {
-                data: cleanBase64,
-                mimeType: mimeType || 'image/jpeg'
-              }
-            },
-            {
-              text: 'Extract medication details from this label. Return JSON with: drug_name, brand_name, dosage, frequency, timing_instructions, with_food (boolean). If not a medication label return { "error": "not_a_label" }'
-            }
-          ]
-        }
-      ],
-      generationConfig: {
-        responseMimeType: 'application/json'
-      }
-    };
-
-    const geminiRes = await fetch(geminiUrl, {
+    // Forward request to OpenRouter API endpoint with google/gemma-4-31b-it:free
+    const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openRouterApiKey}`,
+        'HTTP-Referer': process.env.APP_URL || 'https://safedose.app',
+        'X-Title': 'SafeDose AI'
       },
-      body: JSON.stringify(geminiPayload)
+      body: JSON.stringify({
+        model: 'google/gemma-4-31b-it:free',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Analyze this medication prescription bottle label or packaging. Extract the medication name, strength/dosage, dosage form/unit, frequency, timing instructions, and whether it must be taken with food. Return ONLY valid JSON matching this schema without any markdown wrapping:\n{\n  "drug_name": "Generic or primary drug name",\n  "brand_name": "Brand trade name if present, else empty string",\n  "dosage": "e.g. 500 mg, 10 mg",\n  "frequency": "e.g. Twice daily, Once daily, As needed",\n  "timing_instructions": "e.g. Take with morning and evening meals",\n  "with_food": true/false,\n  "confidence": 95\n}\nIf not a medication label or prescription bottle, return: { "error": "not_a_label", "message": "No medication label detected in this photo." }'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType || 'image/jpeg'};base64,${cleanBase64}`
+                }
+              }
+            ]
+          }
+        ],
+        temperature: 0.1
+      })
     });
 
-    if (!geminiRes.ok) {
-      const errorText = await geminiRes.text();
-      console.error('Gemini API Error:', errorText);
-      return res.status(geminiRes.status).json({
-        error: 'Gemini API call failed',
+    if (!openRouterRes.ok) {
+      const errorText = await openRouterRes.text();
+      console.error('OpenRouter API Error:', errorText);
+      let errorMessage = 'OpenRouter extraction failed';
+      try {
+        const errJson = JSON.parse(errorText);
+        if (errJson?.error?.message) {
+          errorMessage = errJson.error.message;
+        }
+      } catch {}
+      return res.status(openRouterRes.status).json({
+        error: 'OpenRouter API call failed',
+        message: errorMessage,
         details: errorText
       });
     }
 
-    const geminiData = await geminiRes.json();
-    let rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const openRouterData: any = await openRouterRes.json();
+    let rawText = openRouterData.choices?.[0]?.message?.content || '';
     rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
 
     let parsed: any = {};
@@ -123,7 +131,7 @@ export default async function handler(req: any, res: any) {
 
     return res.status(200).json(normalized);
   } catch (error: any) {
-    console.error('Error in Vercel scan-label function:', error);
+    console.error('Error in Vercel scan-label function with OpenRouter:', error);
     return res.status(500).json({
       error: 'scan_failed',
       message: error.message || 'Failed to scan medication label'

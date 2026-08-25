@@ -39,7 +39,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 2. Vision OCR & Medication Label Scanning
+// 2. Vision OCR & Medication Label Scanning with OpenRouter (google/gemma-4-31b-it:free)
 app.post('/api/gemini/scan-label', async (req, res) => {
   try {
     const { imageBase64, mimeType = 'image/jpeg' } = req.body;
@@ -50,9 +50,9 @@ app.post('/api/gemini/scan-label', async (req, res) => {
     // Extract pure Base64 without data URI prefix
     const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '').trim();
 
-    const ai = getGeminiClient();
-    if (!ai) {
-      // Fallback mock scan if no API key
+    const openRouterApiKey = process.env.OPENROUTER_API_KEY || process.env.GEMINI_API_KEY;
+    if (!openRouterApiKey) {
+      // Fallback mock scan if no API key is configured
       return res.json({
         drug_name: 'Metformin',
         brand_name: 'Glucophage',
@@ -64,32 +64,63 @@ app.post('/api/gemini/scan-label', async (req, res) => {
       });
     }
 
-    // Structure Gemini Vision API call with inlineData and clinical extraction prompt
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
-      contents: [
-        {
-          inlineData: {
-            data: cleanBase64, // pure base64, no prefix
-            mimeType: mimeType || 'image/jpeg'
+    // Call OpenRouter API with google/gemma-4-31b-it:free multimodal model
+    const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openRouterApiKey}`,
+        'HTTP-Referer': process.env.APP_URL || 'https://safedose.app',
+        'X-Title': 'SafeDose AI'
+      },
+      body: JSON.stringify({
+        model: 'google/gemma-4-31b-it:free',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Analyze this medication prescription bottle label or packaging. Extract the medication name, strength/dosage, dosage form/unit, frequency, timing instructions, and whether it must be taken with food. Return ONLY valid JSON matching this schema without any markdown wrapping:\n{\n  "drug_name": "Generic or primary drug name",\n  "brand_name": "Brand trade name if present, else empty string",\n  "dosage": "e.g. 500 mg, 10 mg",\n  "frequency": "e.g. Twice daily, Once daily, As needed",\n  "timing_instructions": "e.g. Take with morning and evening meals",\n  "with_food": true/false,\n  "confidence": 95\n}\nIf not a medication label or prescription bottle, return: { "error": "not_a_label", "message": "No medication label detected in this photo." }'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType || 'image/jpeg'};base64,${cleanBase64}`
+                }
+              }
+            ]
           }
-        },
-        {
-          text: `Extract medication details from this label. Return JSON with: drug_name, brand_name, dosage, frequency, timing_instructions, with_food (boolean). If not a medication label return { error: "not_a_label" }`
-        }
-      ],
-      config: {
-        responseMimeType: 'application/json'
-      }
+        ],
+        temperature: 0.1
+      })
     });
 
-    let rawText = response.text || '';
+    if (!openRouterRes.ok) {
+      const errText = await openRouterRes.text();
+      console.error('OpenRouter API Error:', errText);
+      let errorMessage = 'OpenRouter extraction failed';
+      try {
+        const errJson = JSON.parse(errText);
+        if (errJson?.error?.message) {
+          errorMessage = errJson.error.message;
+        }
+      } catch {}
+      return res.status(openRouterRes.status).json({
+        error: 'OpenRouter extraction failed',
+        message: errorMessage,
+        details: errText
+      });
+    }
+
+    const openRouterData: any = await openRouterRes.json();
+    let rawText = openRouterData.choices?.[0]?.message?.content || '';
     rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
 
     let parsed: any = {};
     try {
       parsed = JSON.parse(rawText);
-    } catch (parseErr) {
+    } catch {
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         parsed = JSON.parse(jsonMatch[0]);
@@ -127,7 +158,7 @@ app.post('/api/gemini/scan-label', async (req, res) => {
 
     return res.json(normalized);
   } catch (error: any) {
-    console.error('Error in scan-label:', error);
+    console.error('Error in scan-label with OpenRouter:', error);
     return res.status(500).json({
       error: 'scan_failed',
       message: error.message || 'Failed to scan medication label'
