@@ -7,9 +7,12 @@ export async function scanPrescriptionLabel(imageBase64: string, mimeType: strin
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ imageBase64, mimeType })
     });
-    if (!res.ok) throw new Error('Label scan failed');
-    return await res.json();
-  } catch (err) {
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || data.error || 'Failed to scan medication label');
+    }
+    return data;
+  } catch (err: any) {
     console.error('Error scanning label:', err);
     throw err;
   }

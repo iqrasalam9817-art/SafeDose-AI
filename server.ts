@@ -47,65 +47,90 @@ app.post('/api/gemini/scan-label', async (req, res) => {
       return res.status(400).json({ error: 'imageBase64 is required' });
     }
 
+    // Extract pure Base64 without data URI prefix
+    const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '').trim();
+
     const ai = getGeminiClient();
     if (!ai) {
       // Fallback mock scan if no API key
       return res.json({
         drug_name: 'Metformin',
         brand_name: 'Glucophage',
-        dosage: '500',
-        dosage_unit: 'mg',
+        dosage: '500 mg',
         frequency: 'Twice daily',
         timing_instructions: 'Take with morning and evening meals',
         with_food: true,
-        prescriber: 'Dr. Anita Patel',
-        confidence: 96,
-        raw_text: 'METFORMIN HCL 500MG TABLETS - TAKE 1 TABLET TWICE DAILY WITH FOOD'
+        confidence: 96
       });
     }
 
-    const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
-
+    // Structure Gemini Vision API call with inlineData and clinical extraction prompt
     const response = await ai.models.generateContent({
       model: 'gemini-3.7-flash',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType,
-              data: cleanBase64
-            }
-          },
-          {
-            text: `Analyze this medication prescription bottle label or packaging. Extract all clinical details with maximum fidelity.
-Return ONLY valid JSON matching this schema:
-{
-  "drug_name": "Generic or primary drug name",
-  "brand_name": "Brand trade name if present, else null",
-  "dosage": "Numerical dose only e.g. 5, 500, 81",
-  "dosage_unit": "mg | mcg | mL | units",
-  "frequency": "Once daily | Twice daily | Three times daily | As needed",
-  "timing_instructions": "Exact instructions e.g. Take at bedtime",
-  "with_food": true/false,
-  "prescriber": "Doctor name if present, else null",
-  "confidence": 95,
-  "raw_text": "Extracted label text"
-}`
+      contents: [
+        {
+          inlineData: {
+            data: cleanBase64, // pure base64, no prefix
+            mimeType: mimeType || 'image/jpeg'
           }
-        ]
-      },
+        },
+        {
+          text: `Extract medication details from this label. Return JSON with: drug_name, brand_name, dosage, frequency, timing_instructions, with_food (boolean). If not a medication label return { error: "not_a_label" }`
+        }
+      ],
       config: {
         responseMimeType: 'application/json'
       }
     });
 
-    const parsed = JSON.parse(response.text || '{}');
-    return res.json(parsed);
+    let rawText = response.text || '';
+    rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    let parsed: any = {};
+    try {
+      parsed = JSON.parse(rawText);
+    } catch (parseErr) {
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        return res.status(200).json({
+          error: 'not_a_label',
+          message: 'Could not read or parse medication details from this image.'
+        });
+      }
+    }
+
+    // Check if the image was identified as not a medication label
+    if (
+      parsed.error === 'not_a_label' ||
+      parsed.error === 'not a label' ||
+      (!parsed.drug_name && !parsed.brand_name && !parsed.drugName)
+    ) {
+      return res.status(200).json({
+        error: 'not_a_label',
+        message: 'No medication label detected in this photo. Please ensure the label text and medicine name are clearly visible and well-lit.'
+      });
+    }
+
+    // Normalize field names for client
+    const normalized = {
+      drug_name: parsed.drug_name || parsed.drugName || '',
+      brand_name: parsed.brand_name || parsed.brandName || '',
+      dosage: parsed.dosage || '',
+      frequency: parsed.frequency || '',
+      timing_instructions: parsed.timing_instructions || parsed.timingInstructions || '',
+      with_food: typeof parsed.with_food === 'boolean' ? parsed.with_food : (typeof parsed.withFood === 'boolean' ? parsed.withFood : false),
+      confidence: parsed.confidence || 95,
+      raw_text: rawText
+    };
+
+    return res.json(normalized);
   } catch (error: any) {
     console.error('Error in scan-label:', error);
     return res.status(500).json({
-      error: 'Failed to scan medication label',
-      details: error.message
+      error: 'scan_failed',
+      message: error.message || 'Failed to scan medication label'
     });
   }
 });
