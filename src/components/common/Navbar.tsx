@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../../stores/AppContext';
 import {
   ShieldAlert,
+  Plus,
   Camera,
   Activity,
   Menu,
@@ -158,8 +159,8 @@ export const Navbar: React.FC = () => {
                 onClick={() => setShowAddMedModal(true)}
                 className="flex items-center gap-1.5 px-5 py-2.5 text-xs font-black uppercase tracking-tight rounded-full bg-slate-900 hover:bg-black text-white shadow-sm hover:scale-102 transition-all cursor-pointer"
               >
-                <Camera className="w-3.5 h-3.5 text-emerald-400" />
-                <span>+ Scan Drug</span>
+                <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                <span>+ Add Medication</span>
               </button>
               <button
                 onClick={() => setView('landing')}

@@ -303,13 +303,13 @@ export const MedicationsView: React.FC = () => {
           </div>
           <h3 className="text-lg font-black text-slate-900">No medications match your search</h3>
           <p className="text-xs font-medium text-slate-500 max-w-sm mx-auto">
-            Try adjusting your search filters or click below to scan a new prescription bottle label.
+            Try adjusting your search filters or click below to add a new prescription.
           </p>
           <button
             onClick={() => setShowAddMedModal(true)}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-slate-900 hover:bg-black text-white text-xs font-black uppercase tracking-tight shadow-sm cursor-pointer"
           >
-            <Camera className="w-4 h-4 text-emerald-400" /> Scan Medication
+            <Plus className="w-4 h-4 text-emerald-400" /> Add Medication
           </button>
         </div>
       )}

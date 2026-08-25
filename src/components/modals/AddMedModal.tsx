@@ -27,7 +27,7 @@ type TabType = 'scan' | 'search' | 'voice' | 'paste';
 export const AddMedModal: React.FC = () => {
   const { showAddMedModal, setShowAddMedModal, addMedication } = useApp();
 
-  const [activeTab, setActiveTab] = useState<TabType>('scan');
+  const [activeTab, setActiveTab] = useState<TabType>('search');
 
   // Form State
   const [drugName, setDrugName] = useState('');
@@ -497,25 +497,12 @@ export const AddMedModal: React.FC = () => {
           </div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">Add Medication to SafeDose</h2>
           <p className="text-xs font-medium text-slate-500 mt-1">
-            Capture labels with camera AI, upload photos, search FDA monographs, or dictate instructions.
+            Search FDA monographs, dictate instructions, or enter prescription details.
           </p>
         </div>
 
-        {/* 4 Mode Tabs */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border-b border-slate-200 pb-4">
-          <button
-            type="button"
-            onClick={() => setActiveTab('scan')}
-            className={`p-3 rounded-2xl text-xs font-black uppercase tracking-tight flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'scan'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200'
-            }`}
-          >
-            <Camera className="w-5 h-5" />
-            <span>Photo / Camera</span>
-          </button>
-
+        {/* Mode Tabs */}
+        <div className="grid grid-cols-3 gap-2 border-b border-slate-200 pb-4">
           <button
             type="button"
             onClick={() => setActiveTab('search')}
@@ -526,7 +513,7 @@ export const AddMedModal: React.FC = () => {
             }`}
           >
             <Search className="w-5 h-5" />
-            <span>Search FDA</span>
+            <span>Search FDA & Manual</span>
           </button>
 
           <button

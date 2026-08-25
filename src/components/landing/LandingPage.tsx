@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { useApp } from '../../stores/AppContext';
 import {
   Camera,
+  Plus,
   PlayCircle,
   ShieldCheck,
   Lock,
@@ -140,8 +141,8 @@ export const LandingPage: React.FC = () => {
               }}
               className="w-full sm:w-auto flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-blue-600 to-indigo-600 text-white font-semibold text-base shadow-[0_0_30px_rgba(59,130,246,0.35)] hover:shadow-[0_0_45px_rgba(59,130,246,0.55)] hover:scale-105 active:scale-98 transition-all cursor-pointer group"
             >
-              <Camera className="w-5 h-5 text-emerald-300 group-hover:rotate-12 transition-transform" />
-              <span>Scan My Medications</span>
+              <Plus className="w-5 h-5 text-emerald-300 group-hover:rotate-90 transition-transform" />
+              <span>Add My Medications</span>
               <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
             </button>
 
