@@ -186,15 +186,15 @@ export const AddMedModal: React.FC = () => {
 
     ctx.drawImage(video, 0, 0, width, height);
 
-    // Get Base64 without data URI prefix as requested: canvas.toDataURL('image/jpeg').split(',')[1]
-    const dataUrl = canvas.toDataURL('image/jpeg');
-    const base64ImageData = dataUrl.split(',')[1];
+    // Get Base64 without data URI prefix
+    const base64 = canvas.toDataURL('image/jpeg').split(',')[1];
+    const previewDataUrl = canvas.toDataURL('image/jpeg');
 
-    setScanPreviewUrl(dataUrl);
+    setScanPreviewUrl(previewDataUrl);
     stopCamera();
 
     // Send Base64 image to Gemini Vision
-    processImageScan(base64ImageData, 'image/jpeg');
+    processImageScan(base64, 'image/jpeg');
   };
 
   // Process uploaded image file
@@ -215,10 +215,10 @@ export const AddMedModal: React.FC = () => {
 
     const reader = new FileReader();
     reader.onload = () => {
-      const fullDataUrl = reader.result as string;
-      const base64ImageData = fullDataUrl.split(',')[1];
-      setScanPreviewUrl(fullDataUrl);
-      processImageScan(base64ImageData, file.type || 'image/jpeg');
+      if (!reader.result) return;
+      const base64 = reader.result.toString().split(',')[1];
+      setScanPreviewUrl(reader.result.toString());
+      processImageScan(base64, file.type || 'image/jpeg');
     };
     reader.onerror = () => {
       setScanError('Failed to read the image file. Please try selecting the file again.');
