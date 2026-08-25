@@ -1,0 +1,6 @@
+{
+  "name": "SafeDose",
+  "description": "Every dose, confidently safe. Medication safety intelligence platform detecting drug interactions, managing smart schedules, and providing emergency medical insights.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
