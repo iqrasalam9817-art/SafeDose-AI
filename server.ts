@@ -39,7 +39,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 2. Vision OCR & Medication Label Scanning with OpenRouter (google/gemma-4-31b-it:free)
+// 2. Vision OCR & Medication Label Scanning with OpenRouter (google/gemma-4-26b-a4b-it:free)
 app.post('/api/gemini/scan-label', async (req, res) => {
   try {
     const { imageBase64, mimeType = 'image/jpeg' } = req.body;
@@ -64,7 +64,7 @@ app.post('/api/gemini/scan-label', async (req, res) => {
       });
     }
 
-    // Call OpenRouter API with google/gemma-4-31b-it:free multimodal model
+    // Call OpenRouter API with google/gemma-4-26b-a4b-it:free multimodal model
     const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -74,7 +74,7 @@ app.post('/api/gemini/scan-label', async (req, res) => {
         'X-Title': 'SafeDose AI'
       },
       body: JSON.stringify({
-        model: 'google/gemma-4-31b-it:free',
+        model: 'google/gemma-4-26b-a4b-it:free',
         messages: [
           {
             role: 'user',
