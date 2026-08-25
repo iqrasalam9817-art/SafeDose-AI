@@ -38,7 +38,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // Forward request to Gemini API endpoint
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${apiKey}`;
 
     const geminiPayload = {
       contents: [
