@@ -3,7 +3,7 @@ import { AppProvider, useApp } from './stores/AppContext';
 import { Navbar, Footer } from './components/common/Navbar';
 import { SplashScreen } from './components/common/SplashScreen';
 import { LandingPage } from './components/landing/LandingPage';
-import { DashboardLayout } from './components/dashboard/DashboardLayout';
+import { DarkPremiumLayout } from './components/layout/DarkPremiumLayout';
 import { OverviewView } from './components/dashboard/OverviewView';
 import { MedicationsView } from './components/dashboard/MedicationsView';
 import { InteractionsView } from './components/dashboard/InteractionsView';
@@ -30,14 +30,14 @@ const MainAppContent: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-slate-900 selection:text-white">
+    <div className="min-h-screen bg-[#0a0a0f] text-white font-geist selection:bg-cyan-500 selection:text-black">
       {currentView === 'landing' ? (
         <>
           <LandingPage />
           <Footer />
         </>
       ) : (
-        <DashboardLayout>
+        <DarkPremiumLayout>
           {currentView === 'dashboard' && <OverviewView />}
           {currentView === 'medications' && <MedicationsView />}
           {currentView === 'interactions' && <InteractionsView />}
@@ -48,7 +48,7 @@ const MainAppContent: React.FC = () => {
           {currentView === 'emergency' && <EmergencyCardView />}
           {currentView === 'chat' && <ChatView />}
           {currentView === 'settings' && <SettingsView />}
-        </DashboardLayout>
+        </DarkPremiumLayout>
       )}
 
       {/* Global Modals & Wizards */}
