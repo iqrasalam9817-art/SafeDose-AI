@@ -33,7 +33,6 @@ const MainAppContent: React.FC = () => {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-slate-900 selection:text-white">
       {currentView === 'landing' ? (
         <>
-          <Navbar />
           <LandingPage />
           <Footer />
         </>

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../stores/AppContext';
 import { Medication } from '../../types';
+import { DrugScanner } from '../scanner/DrugScanner';
 import {
   X,
   Camera,
@@ -17,7 +18,8 @@ import {
   Plus,
   Image as ImageIcon,
   Check,
-  SwitchCamera
+  SwitchCamera,
+  Scan
 } from 'lucide-react';
 import { scanPrescriptionLabel } from '../../lib/gemini';
 import { searchRxNormDrugs, searchFdaDrugLabel } from '../../lib/fda';
@@ -415,6 +417,30 @@ export const AddMedModal: React.FC = () => {
     setSearchQuery(selectedName);
   };
 
+  // Handler for Client-side DrugScanner OCR / Barcode recognition
+  const handleClientScannerDetect = async (detectedValue: string) => {
+    if (!detectedValue || detectedValue.trim().length === 0) return;
+    const cleanValue = detectedValue.trim();
+    
+    setScanResultConfidence(96);
+    setExtractedSummary(`Label detected: "${cleanValue}"`);
+    setDrugName(cleanValue);
+    setSearchQuery(cleanValue);
+    
+    try {
+      const results = await searchRxNormDrugs(cleanValue);
+      if (results && results.length > 0) {
+        setDrugName(results[0]);
+        setGenericName(results[0].toLowerCase());
+      }
+    } catch (e) {
+      console.log('Search fallback error:', e);
+    }
+    
+    // Switch to search/manual form so user can review the recognized drug
+    setActiveTab('search');
+  };
+
   // Voice Dictation
   const toggleVoice = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -502,7 +528,20 @@ export const AddMedModal: React.FC = () => {
         </div>
 
         {/* Mode Tabs */}
-        <div className="grid grid-cols-3 gap-2 border-b border-slate-200 pb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border-b border-slate-200 pb-4">
+          <button
+            type="button"
+            onClick={() => setActiveTab('scan')}
+            className={`p-3 rounded-2xl text-xs font-black uppercase tracking-tight flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'scan'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200'
+            }`}
+          >
+            <Scan className="w-5 h-5" />
+            <span>OCR & Barcode</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('search')}
@@ -543,349 +582,103 @@ export const AddMedModal: React.FC = () => {
           </button>
         </div>
 
-        {/* ================= TAB 1: SCAN PHOTO & LIVE CAMERA ================= */}
+        {/* ================= TAB 1: SCAN PHOTO & CLIENT-SIDE OCR / BARCODE ================= */}
         {activeTab === 'scan' && (
           <div className="space-y-4">
-            {/* Hidden native file input accepting JPG, JPEG, PNG, WEBP */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
-              className="hidden"
-              onChange={e => {
-                if (e.target.files && e.target.files[0]) {
-                  handleFileUpload(e.target.files[0]);
-                  e.target.value = '';
-                }
-              }}
-            />
-
-            {/* LIVE CAMERA VIEWPORT */}
-            {isCameraActive ? (
-              <div className="relative rounded-3xl overflow-hidden bg-black border-2 border-emerald-500 shadow-xl aspect-video sm:aspect-4/3 flex flex-col justify-between p-4">
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
-
-                {/* Target Frame Overlay */}
-                <div className="absolute inset-8 sm:inset-12 border-2 border-white/60 rounded-2xl pointer-events-none flex items-center justify-center">
-                  <div className="bg-black/50 backdrop-blur-xs text-white text-[11px] font-bold px-3 py-1 rounded-full border border-white/20">
-                    Align bottle or prescription label here
-                  </div>
-                </div>
-
-                {/* Top Control Bar */}
-                <div className="relative z-10 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-xs font-bold text-white bg-black/60 backdrop-blur-md px-3 py-1 rounded-full">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    Live Camera Feed
-                  </span>
-                  <button
-                    type="button"
-                    onClick={toggleCamera}
-                    className="flex items-center gap-1 text-xs font-bold text-white bg-black/60 hover:bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/20 transition-colors cursor-pointer"
-                  >
-                    <SwitchCamera className="w-3.5 h-3.5" />
-                    <span>Flip</span>
-                  </button>
-                </div>
-
-                {/* Bottom Capture Buttons */}
-                <div className="relative z-10 flex items-center justify-center gap-4 pt-4">
-                  <button
-                    type="button"
-                    onClick={stopCamera}
-                    className="px-4 py-2.5 rounded-full bg-black/70 hover:bg-black text-white text-xs font-bold border border-white/20 transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={captureCameraFrame}
-                    className="flex items-center gap-2 px-6 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-500/40 hover:scale-105 transition-all cursor-pointer"
-                  >
-                    <Camera className="w-4 h-4" />
-                    <span>Capture Label</span>
-                  </button>
-                </div>
+            <div className="p-4 rounded-2xl bg-slate-900 text-white flex items-center justify-between">
+              <div>
+                <span className="text-xs font-black text-cyan-400 uppercase tracking-widest block">Client-Side Engine</span>
+                <h4 className="text-sm font-bold text-white">Live Barcode & Tesseract.js OCR Scanner</h4>
               </div>
-            ) : isCameraStarting ? (
-              <div className="rounded-3xl bg-slate-900 text-white p-12 text-center space-y-3 flex flex-col items-center justify-center">
-                <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
-                <strong className="text-sm font-bold block">Initializing Camera Stream...</strong>
-                <span className="text-xs text-slate-400">Requesting browser camera permission</span>
-              </div>
-            ) : (
-              /* DUAL ACTION TILES: Camera or Upload */
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* 1. Live Camera Button */}
-                <button
-                  type="button"
-                  onClick={() => startCamera('environment')}
-                  className="group relative p-6 rounded-3xl bg-slate-900 hover:bg-black text-white text-left transition-all border border-slate-800 shadow-md flex flex-col justify-between space-y-4 cursor-pointer hover:scale-101"
-                >
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
-                    <Camera className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <strong className="text-sm font-black text-white block">Open Live Camera</strong>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Stream camera & snap bottle label directly in real-time
-                    </p>
-                  </div>
-                  <div className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 group-hover:translate-x-1 transition-transform">
-                    <span>Start Camera Viewport</span>
-                    <span>→</span>
-                  </div>
-                </button>
+              <span className="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 text-[11px] font-semibold border border-cyan-500/30">
+                100% On-Device
+              </span>
+            </div>
 
-                {/* 2. File Upload Dropzone */}
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragOver={e => {
-                    e.preventDefault();
-                    setIsDragOver(true);
-                  }}
-                  onDragLeave={() => setIsDragOver(false)}
-                  onDrop={e => {
-                    e.preventDefault();
-                    setIsDragOver(false);
-                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                      handleFileUpload(e.dataTransfer.files[0]);
-                    }
-                  }}
-                  className={`p-6 rounded-3xl border-2 border-dashed text-left transition-all cursor-pointer flex flex-col justify-between space-y-4 ${
-                    isDragOver
-                      ? 'border-emerald-500 bg-emerald-50/50 scale-101'
-                      : 'border-slate-300 hover:border-slate-600 bg-slate-50 hover:bg-slate-100/80'
-                  }`}
-                >
-                  <div className="w-12 h-12 rounded-2xl bg-slate-200 text-slate-800 flex items-center justify-center">
-                    <Upload className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <strong className="text-sm font-black text-slate-900 block">Upload Label Photo</strong>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Drag & drop or browse JPG, JPEG, PNG, WebP files
-                    </p>
-                  </div>
-                  <div className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700">
-                    <span>Select from Device</span>
-                    <span>→</span>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Embedded DrugScanner */}
+            <DrugScanner onDetect={handleClientScannerDetect} />
 
-            {/* CAMERA HARDWARE ERROR BANNER */}
-            {cameraError && (
-              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-2">
-                <div className="flex items-start gap-2 font-bold">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <span>{cameraError}</span>
-                </div>
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => startCamera('environment')}
-                    className="px-3 py-1.5 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] cursor-pointer"
-                  >
-                    Retry Camera
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-3 py-1.5 rounded-full bg-white hover:bg-amber-100 border border-amber-300 text-amber-800 font-bold text-[11px] cursor-pointer"
-                  >
-                    Upload Image File Instead
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* PROCESSING LOADING SPINNER */}
-            {isScanning && (
-              <div className="p-6 rounded-3xl bg-slate-900 text-white flex items-center gap-4 shadow-lg border border-slate-800 animate-pulse">
-                <Loader2 className="w-8 h-8 text-emerald-400 animate-spin shrink-0" />
-                <div>
-                  <strong className="text-sm font-black text-white block">
-                    Extracting Medication Details with Gemini Vision AI...
-                  </strong>
-                  <span className="text-xs text-slate-400">
-                    Analyzing drug name, dosage, frequency, and food interaction rules
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* SCANNING ERROR BANNER */}
-            {scanError && !isScanning && (
-              <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-900 text-xs space-y-2">
-                <div className="flex items-start gap-2.5">
-                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="font-black text-red-950 block mb-0.5">Extraction Issue</strong>
-                    <p className="text-red-800 leading-relaxed">{scanError}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-red-600 hover:bg-red-700 text-white font-bold text-[11px] cursor-pointer transition-colors"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    <span>Upload Different Image</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => startCamera('environment')}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white hover:bg-red-100 border border-red-300 text-red-800 font-bold text-[11px] cursor-pointer transition-colors"
-                  >
-                    <Camera className="w-3 h-3" />
-                    <span>Snap with Camera</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* EXTRACTION SUCCESS BANNER */}
-            {scanResultConfidence && !isScanning && !scanError && (
-              <div className="p-4 rounded-3xl bg-emerald-50 border border-emerald-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-emerald-900 font-black text-xs">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>Medication Details Extracted Successfully</span>
-                  </div>
-                  <span className="text-[11px] font-black text-emerald-800 bg-emerald-100/80 px-2.5 py-1 rounded-full border border-emerald-300">
-                    {scanResultConfidence}% AI Confidence
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  {scanPreviewUrl && (
-                    <img
-                      src={scanPreviewUrl}
-                      alt="Scanned Label Preview"
-                      referrerPolicy="no-referrer"
-                      className="w-14 h-14 object-cover rounded-xl border border-emerald-300 bg-white shrink-0"
-                    />
-                  )}
-                  <div className="text-xs">
-                    <strong className="text-slate-900 font-black text-sm block">
-                      {drugName} {dosage ? `${dosage}${dosageUnit}` : ''}
-                    </strong>
-                    <span className="text-slate-600 text-[11px]">
-                      {extractedSummary || 'Auto-filled in the form below. Review before saving.'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-1 text-[11px] text-emerald-800 font-bold">
-                  <span>↓ Review and verify extracted details below</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setScanPreviewUrl(null);
-                      setScanResultConfidence(null);
-                      setExtractedSummary(null);
-                    }}
-                    className="hover:underline text-slate-500 cursor-pointer"
-                  >
-                    Clear Photo
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* SAMPLE PHARMACY LABELS */}
-            <div>
-              <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest block mb-2">
-                Or test with sample pharmacy labels:
+            {/* Sample Label Simulations */}
+            <div className="pt-2 border-t border-slate-200">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block mb-2">
+                Or simulate scan with sample labels:
               </span>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <button
                   type="button"
                   onClick={() =>
                     handleTestScanSample({
-                      name: 'Eliquis',
-                      generic: 'apixaban',
+                      name: 'Warfarin',
+                      generic: 'warfarin sodium',
                       dosage: '5',
                       unit: 'mg',
-                      freq: 'Twice daily (Morning & Evening)',
-                      cls: 'DOAC Blood Thinner',
+                      freq: 'Once daily (Evening)',
+                      cls: 'Anticoagulant (Vitamin K Antagonist)',
                       food: false,
-                      timing: 'Take 1 tablet every 12 hours with water'
+                      timing: 'Take consistently at 6:00 PM with or without food'
                     })
                   }
-                  className="p-3 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs text-slate-700 text-left cursor-pointer transition-colors"
+                  className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold text-left transition-colors cursor-pointer border border-slate-200"
                 >
-                  <strong className="text-slate-900 font-black block">Eliquis 5mg</strong>
-                  <span className="text-[10px] text-slate-500 font-bold">DOAC Thinner</span>
+                  <span className="block text-emerald-600 font-extrabold text-[10px]">SAMPLE 1</span>
+                  Warfarin 5mg
                 </button>
-
                 <button
                   type="button"
                   onClick={() =>
                     handleTestScanSample({
-                      name: 'Ibuprofen',
-                      generic: 'ibuprofen',
-                      dosage: '400',
+                      name: 'Aspirin (Low Dose)',
+                      generic: 'aspirin',
+                      dosage: '81',
                       unit: 'mg',
-                      freq: 'Every 4-6 hours as needed',
-                      cls: 'NSAID',
-                      food: true,
-                      timing: 'Take with food to protect stomach lining'
-                    })
-                  }
-                  className="p-3 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs text-slate-700 text-left cursor-pointer transition-colors"
-                >
-                  <strong className="text-slate-900 font-black block">Ibuprofen 400mg</strong>
-                  <span className="text-[10px] text-slate-500 font-bold">NSAID Pain</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleTestScanSample({
-                      name: 'Levothyroxine',
-                      generic: 'levothyroxine sodium',
-                      dosage: '75',
-                      unit: 'mcg',
                       freq: 'Once daily (Morning)',
-                      cls: 'Thyroid Hormone',
-                      food: false,
-                      timing: 'Take 30-60 min before breakfast on empty stomach'
+                      cls: 'NSAID / Antiplatelet Agent',
+                      food: true,
+                      timing: 'Take with breakfast and full glass of water'
                     })
                   }
-                  className="p-3 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs text-slate-700 text-left cursor-pointer transition-colors"
+                  className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold text-left transition-colors cursor-pointer border border-slate-200"
                 >
-                  <strong className="text-slate-900 font-black block">Levothyroxine</strong>
-                  <span className="text-[10px] text-slate-500 font-bold">Thyroid 75mcg</span>
+                  <span className="block text-red-600 font-extrabold text-[10px]">SAMPLE 2</span>
+                  Aspirin 81mg
                 </button>
-
                 <button
                   type="button"
                   onClick={() =>
                     handleTestScanSample({
-                      name: 'Omeprazole',
-                      generic: 'omeprazole',
+                      name: 'Lisinopril',
+                      generic: 'lisinopril',
+                      dosage: '10',
+                      unit: 'mg',
+                      freq: 'Once daily (Morning)',
+                      cls: 'ACE Inhibitor (Antihypertensive)',
+                      food: false,
+                      timing: 'Take in morning at 8:00 AM'
+                    })
+                  }
+                  className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold text-left transition-colors cursor-pointer border border-slate-200"
+                >
+                  <span className="block text-blue-600 font-extrabold text-[10px]">SAMPLE 3</span>
+                  Lisinopril 10mg
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleTestScanSample({
+                      name: 'Atorvastatin',
+                      generic: 'atorvastatin calcium',
                       dosage: '20',
                       unit: 'mg',
-                      freq: 'Once daily (Morning)',
-                      cls: 'Proton Pump Inhibitor',
+                      freq: 'Once daily (Bedtime)',
+                      cls: 'HMG-CoA Reductase Inhibitor (Statin)',
                       food: false,
-                      timing: 'Take 30 mins before morning meal'
+                      timing: 'Take at bedtime (9:00 PM). Avoid Grapefruit'
                     })
                   }
-                  className="p-3 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs text-slate-700 text-left cursor-pointer transition-colors"
+                  className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold text-left transition-colors cursor-pointer border border-slate-200"
                 >
-                  <strong className="text-slate-900 font-black block">Omeprazole 20mg</strong>
-                  <span className="text-[10px] text-slate-500 font-bold">PPI Acid Reducer</span>
+                  <span className="block text-purple-600 font-extrabold text-[10px]">SAMPLE 4</span>
+                  Atorvastatin 20mg
                 </button>
               </div>
             </div>
