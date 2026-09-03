@@ -141,12 +141,12 @@ export const Navbar: React.FC = () => {
           {webmcpStatus === 'ready' ? (
             <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              WebMCP ready
+              WebMCP Agent Ready
             </span>
           ) : (
             <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 border border-slate-200">
               <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-              WebMCP unavailable — manual controls active
+              WebMCP unavailable
             </span>
           )}
 

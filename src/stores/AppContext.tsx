@@ -9,6 +9,7 @@ import { Medication, Interaction, SymptomLog, CaregiverLink, Profile, ChatMessag
 import { detectLocalInteraction } from '../lib/fda';
 import { analyzeInteractionWithGemini, sendChatMessage as sendGeminiChat } from '../lib/gemini';
 import { DEFAULT_MEDICATIONS, DEFAULT_PROFILE, DEFAULT_INTERACTIONS, DEFAULT_SCHEDULE, DEFAULT_CAREGIVER_LINKS, DEFAULT_SYMPTOM_LOGS } from '../data/defaultData';
+import { executeWebMCPTool, isWebMCPAvailable } from '../lib/webmcp';
 
 const STORAGE_KEY = 'safedose_app_state_v1';
 
@@ -46,6 +47,8 @@ interface AppContextType extends AppState {
   setMedicationSearchQuery: (query: string) => void;
   setWebmcpStatus: (status: 'ready' | 'unavailable') => void;
   setShowAgentActivityPanel: (show: boolean) => void;
+  executeWebMCP: (toolName: string, params?: any) => Promise<any>;
+  toggleWebMCP: () => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -397,6 +400,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => prev.showAgentActivityPanel === show ? prev : ({ ...prev, showAgentActivityPanel: show }));
   }, []);
 
+  const executeWebMCP = useCallback(async (toolName: string, params?: any) => {
+    try {
+      return await executeWebMCPTool(toolName, params);
+    } catch (err) {
+      console.error('[WebMCP Execute Error]', err);
+      throw err;
+    }
+  }, []);
+
+  const toggleWebMCP = useCallback(() => {
+    setState(prev => {
+      if (!isWebMCPAvailable()) {
+        return { ...prev, webmcpStatus: 'unavailable' };
+      }
+      return {
+        ...prev,
+        webmcpStatus: prev.webmcpStatus === 'ready' ? 'unavailable' : 'ready'
+      };
+    });
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -433,7 +457,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearAgentActivities,
         setMedicationSearchQuery,
         setWebmcpStatus,
-        setShowAgentActivityPanel
+        setShowAgentActivityPanel,
+        executeWebMCP,
+        toggleWebMCP
       }}
     >
       {children}

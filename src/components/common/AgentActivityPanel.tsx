@@ -12,7 +12,9 @@ import {
   ChevronDown,
   ChevronUp,
   Cpu,
-  Sparkles
+  Sparkles,
+  Play,
+  RotateCcw
 } from 'lucide-react';
 
 export const AgentActivityPanel: React.FC = () => {
@@ -21,12 +23,26 @@ export const AgentActivityPanel: React.FC = () => {
     clearAgentActivities,
     webmcpStatus,
     showAgentActivityPanel,
-    setShowAgentActivityPanel
+    setShowAgentActivityPanel,
+    executeWebMCP,
+    toggleWebMCP
   } = useApp();
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [isExecuting, setIsExecuting] = useState<string | null>(null);
 
   if (!showAgentActivityPanel) return null;
+
+  const handleTriggerTool = async (name: string, params: any = {}) => {
+    setIsExecuting(name);
+    try {
+      await executeWebMCP(name, params);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExecuting(null);
+    }
+  };
 
   const getToolIcon = (tool: string) => {
     switch (tool) {
@@ -99,20 +115,71 @@ export const AgentActivityPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* WebMCP Status Strip */}
+        {/* WebMCP Status Strip with Toggle */}
         <div className="px-5 py-3 bg-white/[0.03] border-b border-white/5 flex items-center justify-between">
-          <span className="text-xs text-slate-400 font-medium">WebMCP Protocol:</span>
-          {webmcpStatus === 'ready' ? (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>WebMCP ready</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 text-xs font-medium">
-              <span className="w-2 h-2 rounded-full bg-slate-500" />
-              <span>WebMCP unavailable — manual controls active</span>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400 font-medium">Protocol:</span>
+            {webmcpStatus === 'ready' ? (
+              <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-semibold">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>WebMCP Agent Ready</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-slate-400 text-xs font-medium">
+                <span className="w-2 h-2 rounded-full bg-slate-500" />
+                <span>Agent Paused</span>
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={toggleWebMCP}
+            className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+              webmcpStatus === 'ready'
+                ? 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-500/40 text-emerald-300'
+                : 'bg-white/10 hover:bg-white/15 border-white/20 text-slate-300'
+            }`}
+            title="Click to toggle WebMCP protocol status"
+          >
+            {webmcpStatus === 'ready' ? 'Active (Click to Pause)' : 'Paused (Click to Enable)'}
+          </button>
+        </div>
+
+        {/* Quick Tool Execution Bar */}
+        <div className="px-4 py-3 bg-white/[0.02] border-b border-white/5">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+            <span>Test WebMCP Tool Invocations:</span>
+            <span className="text-cyan-400">Live Agent Hook</span>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            <button
+              onClick={() => handleTriggerTool('check_regimen_safety', { includeFoodAndSupplements: true })}
+              disabled={isExecuting !== null}
+              className="px-2 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+              title="Execute check_regimen_safety tool"
+            >
+              <ShieldCheck className="w-3 h-3" />
+              <span className="truncate">Safety</span>
+            </button>
+            <button
+              onClick={() => handleTriggerTool('search_medication', { name: 'Warfarin' })}
+              disabled={isExecuting !== null}
+              className="px-2 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+              title="Execute search_medication tool"
+            >
+              <Search className="w-3 h-3" />
+              <span className="truncate">Search</span>
+            </button>
+            <button
+              onClick={() => handleTriggerTool('get_current_regimen', {})}
+              disabled={isExecuting !== null}
+              className="px-2 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+              title="Execute get_current_regimen tool"
+            >
+              <Pill className="w-3 h-3" />
+              <span className="truncate">Regimen</span>
+            </button>
+          </div>
         </div>
 
         {/* Activity List */}
@@ -122,7 +189,7 @@ export const AgentActivityPanel: React.FC = () => {
               <div className="p-4 rounded-2xl bg-white/5 border border-white/10 mb-4">
                 <Activity className="w-8 h-8 text-slate-500" />
               </div>
-              <h4 className="text-white font-semibold text-sm mb-1">No Agent Activity Logged</h4>
+              <h4 className="text-white font-semibold text-sm mb-1">No agent activity yet</h4>
               <p className="text-xs text-slate-400 max-w-xs leading-relaxed mb-4">
                 When an AI agent or browser model invokes <code className="text-cyan-400">search_medication</code>, <code className="text-emerald-400">get_current_regimen</code>, or <code className="text-amber-400">check_regimen_safety</code> via WebMCP, execution logs appear here in real time.
               </p>

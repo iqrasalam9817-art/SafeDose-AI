@@ -16,7 +16,8 @@ import {
   ArrowRight,
   TrendingUp,
   ShieldCheck,
-  Plus
+  Plus,
+  ChevronRight
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -27,6 +28,7 @@ import {
   Tooltip,
   Cell
 } from 'recharts';
+import { DrugDetailModal } from '../modals/DrugDetailModal';
 
 export const OverviewView: React.FC = () => {
   const {
@@ -43,7 +45,9 @@ export const OverviewView: React.FC = () => {
     isAnalyzing,
     notifyDoctorInteraction,
     dismissInteraction,
-    sendChatMessage
+    sendChatMessage,
+    activeDrugDetail,
+    setActiveDrugDetail
   } = useApp();
 
   const [cautionsExpanded, setCautionsExpanded] = useState(true);
@@ -73,19 +77,19 @@ export const OverviewView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 text-white font-geist">
       {/* ================= ROW 1: SAFETY SCORE HERO CARD ================= */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm relative overflow-hidden">
+      <div className="bg-[#0e0e17]/80 backdrop-blur-md rounded-2xl p-6 sm:p-8 border border-white/10 shadow-xl shadow-black/30 relative overflow-hidden">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           {/* Left Side: Semi-Circular Radial Gauge */}
           <div className="lg:col-span-5 flex flex-col sm:flex-row items-center gap-6">
-            <div className="relative w-36 h-36 flex-shrink-0 flex items-center justify-center">
+            <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
               <svg className="w-full h-full transform -rotate-90">
                 <circle
                   cx="72"
                   cy="72"
                   r="58"
-                  stroke="#E2E8F0"
+                  stroke="rgba(255,255,255,0.07)"
                   strokeWidth="12"
                   fill="transparent"
                 />
@@ -95,10 +99,10 @@ export const OverviewView: React.FC = () => {
                   r="58"
                   stroke={
                     safetyScore.score >= 80
-                      ? '#059669'
+                      ? '#10B981'
                       : safetyScore.score >= 60
-                      ? '#D97706'
-                      : '#DC2626'
+                      ? '#F59E0B'
+                      : '#EF4444'
                   }
                   strokeWidth="12"
                   strokeDasharray={364}
@@ -109,22 +113,23 @@ export const OverviewView: React.FC = () => {
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-4xl font-black text-slate-900 tracking-tighter">{safetyScore.score}</span>
-                <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">/ 100 Safe</span>
+                <span className="text-4xl font-black text-white tracking-tighter">{safetyScore.score}</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">/ 100 Safe</span>
               </div>
             </div>
 
             <div className="text-center sm:text-left space-y-1.5">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest flex items-center justify-center sm:justify-start gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
                 Overall Regimen Safety
               </span>
               <h3
                 className={`text-xl sm:text-2xl font-black tracking-tight ${
                   safetyScore.score >= 80
-                    ? 'text-emerald-700'
+                    ? 'text-emerald-400'
                     : safetyScore.score >= 60
-                    ? 'text-amber-700'
-                    : 'text-red-700'
+                    ? 'text-amber-400'
+                    : 'text-red-400'
                 }`}
               >
                 {safetyScore.score >= 80
@@ -133,7 +138,7 @@ export const OverviewView: React.FC = () => {
                   ? 'MODERATE CONFLICT RISK'
                   : 'CRITICAL ATTENTION REQUIRED'}
               </h3>
-              <p className="text-xs font-medium text-slate-600 leading-relaxed max-w-xs">
+              <p className="text-xs text-slate-300 leading-relaxed max-w-xs">
                 {criticalInteractions.length > 0
                   ? `${criticalInteractions.length} critical drug conflict detected. Follow clinical action plans below.`
                   : 'All active prescriptions safely spaced with zero deadly interactions.'}
@@ -143,24 +148,24 @@ export const OverviewView: React.FC = () => {
 
           {/* Center: 4 Count Boxes (2x2 Grid) */}
           <div className="lg:col-span-4 grid grid-cols-2 gap-3">
-            <div className="p-4 rounded-2xl bg-red-50 border-2 border-red-200 text-center">
-              <div className="text-2xl font-black text-red-600">{safetyScore.criticalCount + safetyScore.deadlyCount}</div>
-              <div className="text-[10px] font-black text-red-800 uppercase tracking-tight">Critical / Deadly</div>
+            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-center">
+              <div className="text-2xl font-black text-red-400">{safetyScore.criticalCount + safetyScore.deadlyCount}</div>
+              <div className="text-[11px] font-semibold text-red-300 uppercase tracking-tight">Critical / Deadly</div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-200 text-center">
-              <div className="text-2xl font-black text-amber-700">{safetyScore.cautionCount}</div>
-              <div className="text-[10px] font-black text-amber-800 uppercase tracking-tight">Cautions</div>
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center">
+              <div className="text-2xl font-black text-amber-400">{safetyScore.cautionCount}</div>
+              <div className="text-[11px] font-semibold text-amber-300 uppercase tracking-tight">Cautions</div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-yellow-50 border-2 border-yellow-200 text-center">
-              <div className="text-2xl font-black text-yellow-700">{safetyScore.minorCount}</div>
-              <div className="text-[10px] font-black text-yellow-800 uppercase tracking-tight">Minor / Food</div>
+            <div className="p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-center">
+              <div className="text-2xl font-black text-cyan-400">{safetyScore.minorCount}</div>
+              <div className="text-[11px] font-semibold text-cyan-300 uppercase tracking-tight">Minor / Food</div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-200 text-center">
-              <div className="text-2xl font-black text-emerald-700">{safetyScore.safeCount}</div>
-              <div className="text-[10px] font-black text-emerald-800 uppercase tracking-tight">Safe Pairs</div>
+            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-center">
+              <div className="text-2xl font-black text-emerald-400">{safetyScore.safeCount}</div>
+              <div className="text-[11px] font-semibold text-emerald-300 uppercase tracking-tight">Safe Pairs</div>
             </div>
           </div>
 
@@ -169,21 +174,21 @@ export const OverviewView: React.FC = () => {
             <button
               onClick={recalculateAllInteractions}
               disabled={isAnalyzing}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-full bg-slate-900 hover:bg-black text-white text-xs font-black uppercase tracking-tight shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white hover:bg-slate-200 text-black text-xs font-semibold tracking-tight shadow-md transition-all cursor-pointer disabled:opacity-50"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isAnalyzing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 text-cyan-600 ${isAnalyzing ? 'animate-spin' : ''}`} />
               <span>{isAnalyzing ? 'Checking FDA...' : 'Re-verify All Meds'}</span>
             </button>
 
             <button
               onClick={() => setView('emergency')}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 text-xs font-black uppercase tracking-tight transition-all cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-white border border-white/10 text-xs font-semibold tracking-tight transition-all cursor-pointer"
             >
-              <Share2 className="w-3.5 h-3.5" />
+              <Share2 className="w-3.5 h-3.5 text-slate-400" />
               <span>Export Report</span>
             </button>
 
-            <span className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-wider">
+            <span className="text-[10px] text-center text-slate-400 font-medium">
               FDA Checked: Today 08:00 AM
             </span>
           </div>
@@ -195,10 +200,10 @@ export const OverviewView: React.FC = () => {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-            <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+            <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight">
               Requires Urgent Physician Attention
             </h3>
-            <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/30">
               {criticalInteractions.length} Critical
             </span>
           </div>
@@ -207,57 +212,57 @@ export const OverviewView: React.FC = () => {
             {criticalInteractions.map(interaction => (
               <div
                 key={interaction.id}
-                className="relative rounded-3xl bg-red-50/70 border-2 border-red-500 p-6 sm:p-7 shadow-sm overflow-hidden"
+                className="relative rounded-2xl bg-red-950/20 border border-red-500/40 p-6 sm:p-7 shadow-xl shadow-red-950/10 overflow-hidden"
               >
                 <div className="space-y-4">
                   {/* Header Row */}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="px-3 py-1 rounded-full bg-red-600 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="px-3 py-1 rounded-full bg-red-500 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-sm shadow-red-500/20">
                         <AlertOctagon className="w-3.5 h-3.5" />
                         Critical Interaction
                       </span>
-                      <span className="text-xs font-bold text-slate-500">
+                      <span className="text-xs text-slate-400">
                         Authority: {interaction.source}
                       </span>
                     </div>
 
                     {interaction.doctorNotified && (
-                      <span className="text-xs text-emerald-700 font-black flex items-center gap-1 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-200">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Doctor Notified
+                      <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Doctor Notified
                       </span>
                     )}
                   </div>
 
                   {/* Drug Pair */}
-                  <div className="flex flex-wrap items-center gap-3 text-lg sm:text-xl font-black text-slate-900">
-                    <span className="px-3.5 py-1.5 rounded-2xl bg-white border-2 border-slate-300 shadow-xs">
-                      💊 {interaction.drugAName}
+                  <div className="flex flex-wrap items-center gap-3 text-lg sm:text-xl font-bold text-white">
+                    <span className="px-3.5 py-1.5 rounded-xl bg-white/5 border border-white/10 shadow-sm flex items-center gap-2">
+                      <span>💊</span> {interaction.drugAName}
                     </span>
-                    <span className="text-red-600 font-black text-xl">⟷</span>
-                    <span className="px-3.5 py-1.5 rounded-2xl bg-white border-2 border-slate-300 shadow-xs">
-                      💊 {interaction.drugBName}
+                    <span className="text-red-400 font-bold text-xl">⟷</span>
+                    <span className="px-3.5 py-1.5 rounded-xl bg-white/5 border border-white/10 shadow-sm flex items-center gap-2">
+                      <span>💊</span> {interaction.drugBName}
                     </span>
                   </div>
 
                   {/* Plain English AI Explanation */}
-                  <p className="text-sm text-slate-800 leading-relaxed font-bold bg-white p-4 rounded-2xl border border-red-200">
+                  <div className="text-sm text-slate-200 leading-relaxed font-medium bg-black/40 p-4 rounded-xl border border-red-500/20">
                     "{interaction.aiExplanation}"
-                  </p>
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    <div className="bg-red-100/60 p-4 rounded-2xl border border-red-200">
-                      <strong className="text-red-900 font-black uppercase tracking-tight block mb-1">What to watch out for:</strong>
-                      <span className="text-slate-800 font-medium">{interaction.whatItMeans}</span>
+                    <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20">
+                      <strong className="text-red-300 font-bold uppercase tracking-tight block mb-1">What to watch out for:</strong>
+                      <span className="text-slate-200 font-normal leading-relaxed">{interaction.whatItMeans}</span>
                     </div>
-                    <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200">
-                      <strong className="text-emerald-900 font-black uppercase tracking-tight block mb-1">Clinical Action Plan:</strong>
-                      <span className="text-slate-800 font-medium">{interaction.actionRequired}</span>
+                    <div className="bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20">
+                      <strong className="text-emerald-300 font-bold uppercase tracking-tight block mb-1">Clinical Action Plan:</strong>
+                      <span className="text-slate-200 font-normal leading-relaxed">{interaction.actionRequired}</span>
                     </div>
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-red-200">
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-red-500/20">
                     <div className="flex flex-wrap items-center gap-2.5">
                       <button
                         onClick={() =>
@@ -265,16 +270,16 @@ export const OverviewView: React.FC = () => {
                             `Can you explain why taking ${interaction.drugAName} and ${interaction.drugBName} together is risky for me?`
                           )
                         }
-                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-slate-900 hover:bg-black text-white text-xs font-black uppercase tracking-tight shadow-xs transition-all cursor-pointer"
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold tracking-tight transition-all cursor-pointer"
                       >
-                        <MessageSquareHeart className="w-3.5 h-3.5 text-emerald-400" />
+                        <MessageSquareHeart className="w-3.5 h-3.5 text-cyan-400" />
                         Ask AI Assistant
                       </button>
 
                       <a
                         href={`tel:${profile.primaryDoctorPhone}`}
                         onClick={() => notifyDoctorInteraction(interaction.id)}
-                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-red-600 hover:bg-red-700 text-white text-xs font-black uppercase tracking-tight shadow-xs transition-all"
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-semibold tracking-tight shadow-sm transition-all"
                       >
                         <PhoneCall className="w-3.5 h-3.5" />
                         Call Dr. {profile.primaryDoctorName.split(' ')[1] || 'Doctor'}
@@ -283,7 +288,7 @@ export const OverviewView: React.FC = () => {
 
                     <button
                       onClick={() => dismissInteraction(interaction.id)}
-                      className="text-xs font-bold text-slate-500 hover:text-slate-900 underline cursor-pointer"
+                      className="text-xs font-medium text-slate-400 hover:text-white underline cursor-pointer"
                     >
                       Acknowledge & Hide
                     </button>
@@ -297,42 +302,42 @@ export const OverviewView: React.FC = () => {
 
       {/* ================= ROW 3: CAUTION ALERTS (Collapsible) ================= */}
       {cautionInteractions.length > 0 && (
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
+        <div className="bg-[#0e0e17]/80 rounded-2xl p-6 border border-white/10 shadow-lg">
           <div
             onClick={() => setCautionsExpanded(!cautionsExpanded)}
             className="flex items-center justify-between cursor-pointer"
           >
             <div className="flex items-center gap-2.5">
-              <AlertTriangle className="w-5 h-5 text-amber-600" />
-              <h4 className="text-base font-black text-slate-900">
+              <AlertTriangle className="w-5 h-5 text-amber-400" />
+              <h4 className="text-base font-bold text-white">
                 Caution & Timing Adjustments ({cautionInteractions.length})
               </h4>
             </div>
-            <button className="text-slate-500 hover:text-slate-900 p-1">
+            <button className="text-slate-400 hover:text-white p-1" aria-label="Toggle cautions">
               {cautionsExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
             </button>
           </div>
 
           {cautionsExpanded && (
-            <div className="mt-5 space-y-3 pt-4 border-t border-slate-100">
+            <div className="mt-5 space-y-3 pt-4 border-t border-white/10">
               {cautionInteractions.map(c => (
                 <div
                   key={c.id}
-                  className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-2"
+                  className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-black text-sm text-slate-900">
+                    <span className="font-bold text-sm text-white">
                       💊 {c.drugAName} ⟷ 💊 {c.drugBName}
                     </span>
-                    <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900">
+                    <span className="text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
                       Timing Separation Required
                     </span>
                   </div>
-                  <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                  <p className="text-xs text-slate-300 font-normal leading-relaxed">
                     {c.aiExplanation}
                   </p>
-                  <div className="text-xs text-amber-900 font-bold">
-                    💡 <strong>Solution:</strong> {c.actionRequired}
+                  <div className="text-xs text-amber-300 font-medium">
+                    💡 <strong className="text-amber-200">Solution:</strong> {c.actionRequired}
                   </div>
                 </div>
               ))}
@@ -342,24 +347,24 @@ export const OverviewView: React.FC = () => {
       )}
 
       {/* ================= ROW 4: TODAY'S SMART SCHEDULE PREVIEW ================= */}
-      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm">
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+      <div className="bg-[#0e0e17]/80 rounded-2xl p-6 sm:p-7 border border-white/10 shadow-lg">
+        <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
           <div className="flex items-center gap-2.5">
-            <Clock className="w-5 h-5 text-slate-900" />
+            <Clock className="w-5 h-5 text-cyan-400" />
             <div>
-              <h4 className="text-base font-black text-slate-900">
+              <h4 className="text-base font-bold text-white">
                 Today's AI-Optimized Dosing Schedule
               </h4>
-              <p className="text-xs font-medium text-slate-500">
+              <p className="text-xs text-slate-400">
                 Arranged by chronopharmacology rules to prevent stomach irritation and absorption binding.
               </p>
             </div>
           </div>
           <button
             onClick={() => setView('schedule')}
-            className="text-xs font-black uppercase tracking-tight text-slate-900 hover:text-emerald-600 flex items-center gap-1 cursor-pointer"
+            className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer"
           >
-            View 24h Timeline <ArrowRight className="w-3.5 h-3.5" />
+            <span>Full Timeline</span> <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
@@ -367,29 +372,29 @@ export const OverviewView: React.FC = () => {
           {schedule.slice(0, 4).map(item => (
             <div
               key={item.id}
-              className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border transition-all ${
+              className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border transition-all ${
                 item.takenToday
-                  ? 'bg-emerald-50/70 border-emerald-200 opacity-80'
-                  : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                  ? 'bg-emerald-500/10 border-emerald-500/30 opacity-80'
+                  : 'bg-white/[0.02] border-white/10 hover:border-white/20'
               }`}
             >
               <div className="flex items-start sm:items-center gap-3">
                 <div
-                  className={`w-20 font-mono text-xs font-black ${
-                    item.takenToday ? 'text-emerald-700' : 'text-slate-900'
+                  className={`w-20 font-mono text-xs font-bold ${
+                    item.takenToday ? 'text-emerald-400' : 'text-cyan-400'
                   }`}
                 >
                   {item.time}
                 </div>
                 <div>
-                  <div className="font-black text-sm text-slate-900 flex flex-wrap items-center gap-1.5">
+                  <div className="font-bold text-sm text-white flex flex-wrap items-center gap-1.5">
                     {item.medicationNames.map((name, i) => (
-                      <span key={i} className="px-2.5 py-0.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-800">
+                      <span key={i} className="px-2.5 py-0.5 rounded-lg bg-white/5 border border-white/10 text-xs font-medium text-slate-200">
                         💊 {name}
                       </span>
                     ))}
                   </div>
-                  <div className="text-xs font-medium text-slate-500 mt-1">
+                  <div className="text-xs text-slate-400 mt-1">
                     {item.dosageInstructions}
                   </div>
                 </div>
@@ -398,10 +403,10 @@ export const OverviewView: React.FC = () => {
               <div className="flex items-center gap-2 mt-3 sm:mt-0 self-end sm:self-auto">
                 <button
                   onClick={() => toggleScheduleTaken(item.id)}
-                  className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-tight transition-all cursor-pointer ${
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                     item.takenToday
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-200'
+                      ? 'bg-emerald-500 text-white shadow-xs'
+                      : 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
                   }`}
                 >
                   {item.takenToday ? '✓ Taken' : 'Mark Taken'}
@@ -414,60 +419,85 @@ export const OverviewView: React.FC = () => {
 
       {/* ================= ROW 5: MEDICATIONS OVERVIEW + ADHERENCE ================= */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left (60%): Active Meds Chips */}
-        <div className="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
-              <Pill className="w-4 h-4 text-emerald-600" />
-              <span>Active Medications ({medications.length})</span>
-            </h4>
-            <button
-              onClick={() => setShowAddMedModal(true)}
-              className="text-xs font-black uppercase tracking-tight text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add New
-            </button>
+        {/* Left (60%): Active Meds Cards */}
+        <div className="lg:col-span-7 bg-[#0e0e17]/80 rounded-2xl p-6 sm:p-7 border border-white/10 shadow-lg flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-base font-bold text-white flex items-center gap-2">
+                <Pill className="w-4 h-4 text-emerald-400" />
+                <span>Active Medications ({medications.length})</span>
+              </h4>
+              <button
+                onClick={() => setShowAddMedModal(true)}
+                className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add New
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {medications.map(med => (
+                <div
+                  key={med.id}
+                  onClick={() => setActiveDrugDetail(med)}
+                  className="p-4 rounded-xl bg-white/[0.03] border border-white/10 hover:border-white/25 transition-all cursor-pointer group hover:-translate-y-0.5"
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-bold text-sm text-white group-hover:text-cyan-300 transition-colors">
+                      {med.drugName}
+                    </span>
+                    <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-white/10 text-slate-200">
+                      {med.dosage}
+                      {med.dosageUnit}
+                    </span>
+                  </div>
+                  <div className="mb-2">
+                    <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                      {med.drugClass}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 flex items-center justify-between pt-2 border-t border-white/5">
+                    <span>⏰ {med.frequency}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveDrugDetail(med);
+                      }}
+                      className="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <span>Details</span>
+                      <ChevronRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {medications.map(med => (
-              <div
-                key={med.id}
-                onClick={() => setView('medications')}
-                className="p-4 rounded-2xl bg-slate-50 border border-slate-200 hover:border-slate-400 transition-all cursor-pointer group"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-black text-sm text-slate-900 group-hover:text-emerald-700 transition-colors">
-                    {med.drugName}
-                  </span>
-                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-200 text-slate-800">
-                    {med.dosage}
-                    {med.dosageUnit}
-                  </span>
-                </div>
-                <div className="text-xs font-medium text-slate-500 truncate">{med.drugClass}</div>
-                <div className="text-[11px] font-bold text-slate-600 mt-1 flex items-center gap-2">
-                  <span>⏰ {med.frequency}</span>
-                  {med.withFood && <span>🍽️ With food</span>}
-                </div>
-              </div>
-            ))}
+          <div className="pt-4 mt-4 border-t border-white/5 flex justify-end">
+            <button
+              onClick={() => setView('medications')}
+              className="text-xs font-semibold text-slate-300 hover:text-white flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>View all in Medication Manager</span>
+              <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
+            </button>
           </div>
         </div>
 
         {/* Right (40%): Weekly Adherence Chart */}
-        <div className="lg:col-span-5 bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div className="lg:col-span-5 bg-[#0e0e17]/80 rounded-2xl p-6 sm:p-7 border border-white/10 shadow-lg flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-emerald-600" />
+              <h4 className="text-base font-bold text-white flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
                 <span>Weekly Adherence</span>
               </h4>
-              <span className="text-xs font-black text-emerald-700 font-mono">
+              <span className="text-xs font-bold text-emerald-400 font-mono">
                 {adherencePercentage}% Avg
               </span>
             </div>
-            <p className="text-xs font-medium text-slate-500 mb-4">
+            <p className="text-xs text-slate-400 mb-4">
               Daily dose compliance over the past 7 days.
             </p>
           </div>
@@ -475,17 +505,17 @@ export const OverviewView: React.FC = () => {
           <div className="h-36 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={adherenceData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                <XAxis dataKey="day" stroke="#64748B" fontSize={11} tickLine={false} />
-                <YAxis stroke="#64748B" fontSize={11} domain={[0, 100]} />
+                <XAxis dataKey="day" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                <YAxis stroke="#94A3B8" fontSize={11} domain={[0, 100]} />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#FFFFFF',
-                    borderColor: '#E2E8F0',
-                    borderRadius: '16px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                    backgroundColor: '#0F172A',
+                    borderColor: 'rgba(255,255,255,0.15)',
+                    borderRadius: '12px',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
                     fontSize: '12px',
                     fontWeight: 'bold',
-                    color: '#0F172A'
+                    color: '#FFFFFF'
                   }}
                   formatter={(value: any) => [`${value}% Taken`, 'Adherence']}
                 />
@@ -493,7 +523,7 @@ export const OverviewView: React.FC = () => {
                   {adherenceData.map((entry, index) => (
                     <Cell
                       key={`cell-${index}`}
-                      fill={entry.rate >= 90 ? '#059669' : entry.rate >= 75 ? '#0F172A' : '#D97706'}
+                      fill={entry.rate >= 90 ? '#10B981' : entry.rate >= 75 ? '#06B6D4' : '#F59E0B'}
                     />
                   ))}
                 </Bar>
@@ -503,24 +533,24 @@ export const OverviewView: React.FC = () => {
         </div>
       </div>
 
-      {/* ================= ROW 6: AI CHAT PREVIEW ================= */}
-      <div className="bg-slate-900 text-white rounded-3xl p-6 sm:p-7 shadow-sm">
+      {/* ================= ROW 6: AI SPECIALIST BANNER ================= */}
+      <div className="bg-gradient-to-r from-blue-950/30 via-cyan-950/20 to-slate-900/40 border border-cyan-500/20 text-white rounded-2xl p-6 sm:p-7 shadow-lg">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-emerald-400">
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-base font-black text-white">Ask SafeDose AI Specialist</h4>
-              <p className="text-xs text-slate-300 font-medium">
-                Instant clinical guidance customized to Maria's active 6 medications.
+              <h4 className="text-base font-bold text-white">Ask SafeDose Clinical Assistant</h4>
+              <p className="text-xs text-slate-400">
+                Instant guidance customized to your active regimen.
               </p>
             </div>
           </div>
 
           <button
             onClick={() => setView('chat')}
-            className="px-5 py-2.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black uppercase tracking-tight shadow-md transition-all cursor-pointer self-start sm:self-auto"
+            className="px-4 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 text-xs font-semibold tracking-tight transition-all cursor-pointer self-start sm:self-auto"
           >
             Open Full Chat →
           </button>
@@ -530,26 +560,32 @@ export const OverviewView: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <button
             onClick={() => handleQuickAsk('Is it safe for me to take Ibuprofen with my current medications?')}
-            className="p-3.5 text-left rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-slate-200 font-medium transition-all cursor-pointer"
+            className="p-3 text-left rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 text-xs text-slate-300 transition-all cursor-pointer"
           >
-            💊 <strong className="text-white font-bold">Is Ibuprofen safe</strong> with my current blood thinners?
+            💊 <strong className="text-white font-semibold">Is Ibuprofen safe</strong> with my current regimen?
           </button>
 
           <button
             onClick={() => handleQuickAsk('What foods and juices must I strictly avoid with Warfarin and Atorvastatin?')}
-            className="p-3.5 text-left rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-slate-200 font-medium transition-all cursor-pointer"
+            className="p-3 text-left rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 text-xs text-slate-300 transition-all cursor-pointer"
           >
-            🍊 <strong className="text-white font-bold">Food conflicts</strong> with Warfarin & Statin?
+            🍊 <strong className="text-white font-semibold">Food conflicts</strong> with Warfarin & Statin?
           </button>
 
           <button
             onClick={() => handleQuickAsk('I missed my morning dose of Metformin. What should I do?')}
-            className="p-3.5 text-left rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-slate-200 font-medium transition-all cursor-pointer"
+            className="p-3 text-left rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 text-xs text-slate-300 transition-all cursor-pointer"
           >
-            ⏰ <strong className="text-white font-bold">Missed Metformin dose</strong> protocol?
+            ⏰ <strong className="text-white font-semibold">Missed Metformin dose</strong> protocol?
           </button>
         </div>
       </div>
+
+      {/* Global Drug Detail Modal for working Details links */}
+      <DrugDetailModal
+        medication={activeDrugDetail}
+        onClose={() => setActiveDrugDetail(null)}
+      />
     </div>
   );
 };

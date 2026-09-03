@@ -4,17 +4,9 @@ import { AppView } from '../../stores/useAppStore';
 import { 
   LayoutDashboard, 
   Pill, 
-  AlertTriangle, 
-  Map, 
-  Calendar, 
-  Activity, 
-  Users, 
-  CreditCard, 
-  MessageSquare, 
-  Settings, 
   LogOut, 
-  ChevronRight,
-  X
+  ChevronRight, 
+  X 
 } from 'lucide-react';
 
 interface GlassSidebarProps {
@@ -41,21 +33,7 @@ export function GlassSidebar({ mobileOpen, onCloseMobile }: GlassSidebarProps) {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'medications', label: 'My Medications', icon: Pill, badge: medications?.length || 6 },
-    { 
-      id: 'interactions', 
-      label: 'Interactions', 
-      icon: AlertTriangle, 
-      badge: (safetyScore.criticalCount + safetyScore.cautionCount) > 0 ? (safetyScore.criticalCount + safetyScore.cautionCount) : 3, 
-      alert: true 
-    },
-    { id: 'map', label: 'Med Map', icon: Map },
-    { id: 'schedule', label: 'AI Schedule', icon: Calendar },
-    { id: 'symptoms', label: 'Symptom Logger', icon: Activity },
-    { id: 'caregiver', label: 'Caregiver Portal', icon: Users },
-    { id: 'emergency', label: 'Emergency Card', icon: CreditCard },
-    { id: 'chat', label: 'AI Specialist', icon: MessageSquare },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'medications', label: 'My Medications', icon: Pill, badge: medications?.length },
   ];
 
   return (
@@ -112,7 +90,7 @@ export function GlassSidebar({ mobileOpen, onCloseMobile }: GlassSidebarProps) {
                 }}
                 className="w-full py-3 px-4 rounded-xl bg-white text-black font-semibold text-sm hover:scale-[1.02] active:scale-[0.98] transition-transform flex items-center justify-center gap-2 shadow-lg shadow-white/10 cursor-pointer"
               >
-                <span className="text-lg font-bold leading-none">+</span> Add Prescription
+                <span className="text-lg font-bold leading-none">+</span> Add Medication
               </button>
             </div>
 
@@ -142,11 +120,7 @@ export function GlassSidebar({ mobileOpen, onCloseMobile }: GlassSidebarProps) {
                     
                     <div className="flex items-center gap-2">
                       {item.badge !== undefined && (
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                          item.alert 
-                            ? 'bg-red-500/20 text-red-400 border border-red-500/30' 
-                            : 'bg-white/10 text-white/80'
-                        }`}>
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-white/10 text-white/80">
                           {item.badge}
                         </span>
                       )}

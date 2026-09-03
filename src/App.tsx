@@ -20,7 +20,7 @@ import { AddMedModal } from './components/modals/AddMedModal';
 import { EmergencyModal } from './components/modals/EmergencyModal';
 import { AuthModal } from './components/auth/AuthModal';
 import { OnboardingWizard } from './components/onboarding/OnboardingWizard';
-import { registerWebMCP, WebMCPCallbacks } from './lib/webmcp';
+import { registerWebMCP, unregisterWebMCP, watchForModelContext, WebMCPCallbacks } from './lib/webmcp';
 
 const MainAppContent: React.FC = () => {
   const {
@@ -85,30 +85,57 @@ const MainAppContent: React.FC = () => {
   const setWebmcpStatusRef = useRef(setWebmcpStatus);
   setWebmcpStatusRef.current = setWebmcpStatus;
 
-  // Register WebMCP tools exactly once on mount
+  // Register WebMCP tools with genuine browser/host modelContext
   useEffect(() => {
-    const success = registerWebMCP({
-      getMedications: () => callbacksRef.current.getMedications(),
-      getInteractions: () => callbacksRef.current.getInteractions(),
-      getSafetyScore: () => callbacksRef.current.getSafetyScore(),
-      onSearchMedicationUI: (name, results) => {
-        callbacksRef.current.onSearchMedicationUI?.(name, results);
-      },
-      onViewRegimenUI: () => {
-        callbacksRef.current.onViewRegimenUI?.();
-      },
-      onViewSafetyFindingsUI: () => {
-        callbacksRef.current.onViewSafetyFindingsUI?.();
-      },
-      onAddAgentActivity: (activity) => {
-        callbacksRef.current.onAddAgentActivity(activity);
-      },
-      onRecalculateInteractions: async () => {
-        await callbacksRef.current.onRecalculateInteractions?.();
+    let isMounted = true;
+
+    const performRegistration = async () => {
+      try {
+        const success = await registerWebMCP({
+          getMedications: () => callbacksRef.current.getMedications(),
+          getInteractions: () => callbacksRef.current.getInteractions(),
+          getSafetyScore: () => callbacksRef.current.getSafetyScore(),
+          onSearchMedicationUI: (query, results) => {
+            callbacksRef.current.onSearchMedicationUI?.(query, results);
+          },
+          onViewRegimenUI: () => {
+            callbacksRef.current.onViewRegimenUI?.();
+          },
+          onViewSafetyFindingsUI: () => {
+            callbacksRef.current.onViewSafetyFindingsUI?.();
+          },
+          onAddAgentActivity: (activity) => {
+            callbacksRef.current.onAddAgentActivity(activity);
+          },
+          onRecalculateInteractions: async () => {
+            await callbacksRef.current.onRecalculateInteractions?.();
+          }
+        });
+
+        if (isMounted) {
+          setWebmcpStatusRef.current(success ? 'ready' : 'unavailable');
+        }
+      } catch (err) {
+        if (isMounted) {
+          setWebmcpStatusRef.current('unavailable');
+        }
+      }
+    };
+
+    performRegistration();
+
+    // Watch for delayed WebMCP host attachment (e.g. extension or debugger injection)
+    const cleanupWatcher = watchForModelContext(() => {
+      if (isMounted) {
+        performRegistration();
       }
     });
 
-    setWebmcpStatusRef.current(success ? 'ready' : 'unavailable');
+    return () => {
+      isMounted = false;
+      cleanupWatcher();
+      unregisterWebMCP();
+    };
   }, []);
 
   const handleSplashComplete = useCallback(() => {
