@@ -34,7 +34,6 @@
         "tsx": "^4.21.0",
         "typescript": "~5.8.2",
         "vite": "^6.2.3",
-        "webmcp-types": "^0.1.6",
       },
     },
   },
@@ -782,8 +781,6 @@
     "web-streams-polyfill": ["web-streams-polyfill@3.3.3", "", {}, "sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw=="],
 
     "webidl-conversions": ["webidl-conversions@3.0.1", "", {}, "sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ=="],
-
-    "webmcp-types": ["webmcp-types@0.1.6", "", {}, "sha512-vWYNhhBXQhP4flPIk3sJuzsonPGSTdDyhWgpmPYCNdpIcLHJgjHE51lU0S7gi+UtdxO84FsCnvSJaMfLGWP+3Q=="],
 
     "whatwg-url": ["whatwg-url@5.0.0", "", { "dependencies": { "tr46": "~0.0.3", "webidl-conversions": "^3.0.0" } }, "sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw=="],
 

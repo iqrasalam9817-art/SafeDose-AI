@@ -2,194 +2,140 @@ import { Medication, Interaction, SafetyScore, AgentActivityItem } from '../type
 import {
   searchRxNormDrugs,
   fetchDrugInfoFromFDA,
-  detectLocalInteraction
+  detectLocalInteraction,
+  KNOWN_CLINICAL_INTERACTIONS
 } from './fda';
 
 export type WebMCPStatus = 'ready' | 'unavailable';
+
+declare global {
+  interface Document {
+    modelContext?: {
+      registerTool: (toolDef: {
+        name: string;
+        description: string;
+        inputSchema: Record<string, any>;
+        annotations?: { readOnlyHint?: boolean; [key: string]: any };
+        untrustedContentHint?: boolean;
+        execute: (input: any) => Promise<any> | any;
+        [key: string]: any;
+      }) => void;
+      [key: string]: any;
+    };
+  }
+}
 
 export interface WebMCPCallbacks {
   getMedications: () => Medication[];
   getInteractions: () => Interaction[];
   getSafetyScore: () => SafetyScore;
-  onSearchMedicationUI?: (query: string, results: any) => void;
+  onSearchMedicationUI?: (name: string, results: any) => void;
   onViewRegimenUI?: () => void;
   onViewSafetyFindingsUI?: () => void;
   onAddAgentActivity: (activity: Omit<AgentActivityItem, 'id' | 'timestamp'>) => void;
   onRecalculateInteractions?: () => Promise<void>;
 }
 
-// Module-level state & registration lifecycle
-let activeAbortController: AbortController | null = null;
+// Module-level state & registration guard
 let isWebMCPRegistered = false;
 let activeCallbacks: WebMCPCallbacks | null = null;
 
 /**
- * Discovers available real WebMCP hosts in the browser environment.
- * WebMCP may be exposed on document.modelContext (W3C draft & desktop agents)
- * or navigator.modelContext (early Chromium prototypes).
- *
- * CRITICAL: Returns null if no real host is present. Does NOT create a fake polyfill.
- */
-export function getModelContexts(): any[] {
-  const contexts: any[] = [];
-
-  if (
-    typeof document !== 'undefined' &&
-    (document as any).modelContext &&
-    typeof (document as any).modelContext.registerTool === 'function'
-  ) {
-    contexts.push((document as any).modelContext);
-  }
-
-  if (
-    typeof navigator !== 'undefined' &&
-    (navigator as any).modelContext &&
-    typeof (navigator as any).modelContext.registerTool === 'function'
-  ) {
-    const navMC = (navigator as any).modelContext;
-    if (!contexts.includes(navMC)) {
-      contexts.push(navMC);
-    }
-  }
-
-  return contexts;
-}
-
-/**
- * Checks whether a genuine WebMCP host is available in the current browser session.
- * Never polyfills or mocks.
+ * Checks if the browser environment supports the WebMCP Imperative API.
+ * Safely checks Permissions Policy and wraps access to document.modelContext
+ * in try/catch to avoid DOMExceptions in sandboxed iframes.
  */
 export function isWebMCPAvailable(): boolean {
-  return getModelContexts().length > 0;
+  if (typeof document === 'undefined') return false;
+  try {
+    const permissionsPolicy = (document as any).permissionsPolicy || (document as any).featurePolicy;
+    if (permissionsPolicy && typeof permissionsPolicy.allowsFeature === 'function') {
+      if (!permissionsPolicy.allowsFeature('tools')) {
+        return false;
+      }
+    }
+    const mc = document.modelContext;
+    return Boolean(mc && typeof mc.registerTool === 'function');
+  } catch {
+    return false;
+  }
 }
 
 /**
- * Watcher for hosts that might attach document.modelContext or navigator.modelContext
- * asynchronously after initial script execution (e.g. extensions, debuggers, or test runners).
- */
-export function watchForModelContext(onAvailable: () => void): () => void {
-  if (typeof window === 'undefined') return () => {};
-  if (isWebMCPAvailable()) return () => {};
-
-  let disposed = false;
-  let intervalId: any = null;
-  let attempts = 0;
-
-  // Poll briefly for the first 3 seconds (every 300ms) to detect delayed host attachment
-  intervalId = setInterval(() => {
-    attempts++;
-    if (disposed || attempts > 10) {
-      clearInterval(intervalId);
-      return;
-    }
-    if (isWebMCPAvailable()) {
-      clearInterval(intervalId);
-      onAvailable();
-    }
-  }, 300);
-
-  const handleHostReady = () => {
-    if (!disposed && isWebMCPAvailable()) {
-      onAvailable();
-    }
-  };
-
-  window.addEventListener('modelcontextready', handleHostReady);
-  window.addEventListener('webmcpready', handleHostReady);
-
-  return () => {
-    disposed = true;
-    if (intervalId) clearInterval(intervalId);
-    window.removeEventListener('modelcontextready', handleHostReady);
-    window.removeEventListener('webmcpready', handleHostReady);
-  };
-}
-
-/**
- * Registers the 3 official SafeDose-AI read-only tools on the genuine WebMCP host:
- * 1. search_medication ({ query: string })
- * 2. get_current_regimen ({})
- * 3. check_regimen_safety ({ candidateMedication: string })
+ * Registers the three SafeDose-AI WebMCP tools:
+ * 1. search_medication
+ * 2. get_current_regimen
+ * 3. check_regimen_safety
  *
- * Strictly adheres to W3C WebMCP specification:
- * - Uses real document.modelContext.registerTool()
- * - Registers using AbortSignal for clean lifecycle unregistration on unmount/re-render
- * - Strictly read-only tools: AI agents cannot add, remove, or prescribe medications
- * - Connects real executions to Agent Activity panel
+ * Uses the real browser-side WebMCP Imperative API: document.modelContext.registerTool()
+ * Uses feature detection and a registration guard to prevent duplicate registrations.
  */
-export async function registerWebMCP(callbacks: WebMCPCallbacks): Promise<boolean> {
+export function registerWebMCP(callbacks: WebMCPCallbacks): boolean {
+  // Keep the latest callbacks reference updated across React re-renders
   activeCallbacks = callbacks;
 
-  const contexts = getModelContexts();
-  if (contexts.length === 0) {
-    // Real host not present: do not fake success
-    isWebMCPRegistered = false;
+  // If already registered, don't re-register with document.modelContext
+  if (isWebMCPRegistered) {
+    return true;
+  }
+
+  // Feature detection for the browser-provided WebMCP Imperative API
+  // Safely guard against Permissions Policy restrictions (e.g. iframe sandbox)
+  let isAvailable = false;
+  try {
+    const permissionsPolicy = (document as any).permissionsPolicy || (document as any).featurePolicy;
+    if (permissionsPolicy && typeof permissionsPolicy.allowsFeature === 'function') {
+      if (!permissionsPolicy.allowsFeature('tools')) {
+        setupTestingBridge();
+        return false;
+      }
+    }
+    isAvailable = Boolean(typeof document !== 'undefined' && document.modelContext && typeof document.modelContext.registerTool === 'function');
+  } catch {
+    // Access to "tools" feature disallowed by permissions policy
     setupTestingBridge();
     return false;
   }
 
-  // Avoid duplicate registrations during React re-renders if already registered with active controller
-  if (isWebMCPRegistered && activeAbortController && !activeAbortController.signal.aborted) {
+  if (!isAvailable) {
+    // Expose local testing bridge on window for manual verification
     setupTestingBridge();
-    return true;
+    return false;
   }
-
-  // Clean up any previous registration controller
-  if (activeAbortController) {
-    try {
-      activeAbortController.abort();
-    } catch {
-      // ignore
-    }
-  }
-
-  activeAbortController = new AbortController();
-  const signal = activeAbortController.signal;
 
   try {
-    console.log('[SafeDose WebMCP] API detected');
-    console.log('[SafeDose WebMCP] Registering tools...');
-
     /* -------------------------------------------------------------
      * Tool 1: search_medication
-     * Input: { "query": "string" }
-     * Purpose: Search SafeDose medication data and return structured
-     *          medication information.
      * ------------------------------------------------------------- */
-    const searchMedicationTool = {
+    document.modelContext.registerTool({
       name: 'search_medication',
-      title: 'Search Medication',
-      description: 'Search SafeDose medication data and return structured medication information, cabinet matches, and clinical monograph summaries.',
+      description: 'Search SafeDose-AI for a medication by brand or generic name.',
       inputSchema: {
         type: 'object',
         properties: {
-          query: {
+          name: {
             type: 'string',
-            description: 'Brand or generic name of the medication to search (e.g., Warfarin, Lisinopril, Metformin).'
+            description: 'The brand or generic name of the medication to search.'
           }
         },
-        required: ['query'],
+        required: ['name'],
         additionalProperties: false
       },
       annotations: {
-        readOnlyHint: true,
-        untrustedContentHint: true
+        readOnlyHint: true
       },
+      untrustedContentHint: true,
       execute: async (input: any) => {
-        return await handleSearchMedication(input);
+        return handleSearchMedication(input);
       }
-    };
+    });
 
     /* -------------------------------------------------------------
      * Tool 2: get_current_regimen
-     * Input: {}
-     * Purpose: Return the medications CURRENTLY displayed in the user's
-     *          SafeDose cabinet.
      * ------------------------------------------------------------- */
-    const getCurrentRegimenTool = {
+    document.modelContext.registerTool({
       name: 'get_current_regimen',
-      title: 'Get Current Regimen',
-      description: 'Return the medications currently confirmed and displayed in the user\'s SafeDose cabinet with dosage, frequency, and food instructions.',
+      description: 'Show the currently confirmed medications in the SafeDose-AI medication cabinet.',
       inputSchema: {
         type: 'object',
         properties: {},
@@ -198,104 +144,68 @@ export async function registerWebMCP(callbacks: WebMCPCallbacks): Promise<boolea
       annotations: {
         readOnlyHint: true
       },
+      untrustedContentHint: false,
       execute: async (input: any) => {
-        return await handleGetCurrentRegimen(input);
+        return handleGetCurrentRegimen(input);
       }
-    };
+    });
 
     /* -------------------------------------------------------------
      * Tool 3: check_regimen_safety
-     * Input: { "candidateMedication": "string" }
-     * Purpose: Check the candidate medication against the CURRENT SafeDose
-     *          regimen and return structured interaction results,
-     *          including severity and affected medication pairs.
      * ------------------------------------------------------------- */
-    const checkRegimenSafetyTool = {
+    document.modelContext.registerTool({
       name: 'check_regimen_safety',
-      title: 'Check Regimen Safety',
-      description: 'Check candidate medication against the current SafeDose regimen and return structured interaction results, including severity, mechanism, and affected medication pairs.',
+      description: 'Check the current medication regimen for potential interaction and timing findings to review with a qualified clinician or pharmacist.',
       inputSchema: {
         type: 'object',
         properties: {
-          candidateMedication: {
+          medicationName: {
             type: 'string',
-            description: 'Candidate medication name to evaluate against the current active SafeDose regimen.'
+            description: 'Optional name of a specific candidate medication to test against the current regimen.'
+          },
+          includeFoodAndSupplements: {
+            type: 'boolean',
+            description: 'Whether to include food and supplement interactions (e.g., grapefruit, calcium) in the assessment.'
           }
         },
-        required: ['candidateMedication'],
         additionalProperties: false
       },
       annotations: {
         readOnlyHint: true
       },
+      untrustedContentHint: true,
       execute: async (input: any) => {
-        return await handleCheckRegimenSafety(input);
+        return handleCheckRegimenSafety(input);
       }
-    };
+    });
 
-    // Register on all discovered real model contexts (document.modelContext / navigator.modelContext)
-    for (const mc of contexts) {
-      await mc.registerTool(searchMedicationTool, { signal });
-      console.log('[SafeDose WebMCP] search_medication registered');
-
-      await mc.registerTool(getCurrentRegimenTool, { signal });
-      console.log('[SafeDose WebMCP] get_current_regimen registered');
-
-      await mc.registerTool(checkRegimenSafetyTool, { signal });
-      console.log('[SafeDose WebMCP] check_regimen_safety registered');
-    }
-
-    console.log('[SafeDose WebMCP] Ready');
     isWebMCPRegistered = true;
     setupTestingBridge();
     return true;
   } catch (err: any) {
-    // If tools were already registered in this context (e.g. HMR or prior registration instance)
+    console.warn('[WebMCP] Tool registration error:', err);
+    // If tools were already registered by an earlier script instance
     if (err?.name === 'InvalidStateError' || err?.message?.includes?.('already registered')) {
-      console.log('[SafeDose WebMCP] Ready (re-used existing registration)');
       isWebMCPRegistered = true;
       setupTestingBridge();
       return true;
     }
-
-    console.error('[SafeDose WebMCP] Registration failed:', err);
-    isWebMCPRegistered = false;
-    setupTestingBridge();
     return false;
   }
 }
 
 /**
- * Unregisters tools by aborting the active AbortController per WebMCP specification.
+ * Handler for search_medication tool
  */
-export function unregisterWebMCP(): void {
-  if (activeAbortController) {
-    try {
-      activeAbortController.abort();
-    } catch {
-      // ignore
-    }
-    activeAbortController = null;
-  }
-  isWebMCPRegistered = false;
-}
-
-/**
- * Handler for search_medication tool.
- * Input: { "query": "string" }
- */
-export async function handleSearchMedication(input: any) {
-  // Extract and sanitize query parameter (accepting query per spec, fallback to name if passed)
-  const rawQuery = input && typeof input === 'object' ? (input.query ?? input.name) : input;
-  const sanitizedQuery = typeof rawQuery === 'string' ? rawQuery.trim().slice(0, 128) : '';
-
-  if (!sanitizedQuery) {
-    const errorMsg = 'Invalid input: "query" parameter is required and must be a non-empty string.';
+async function handleSearchMedication(input: any) {
+  // Input validation
+  if (!input || typeof input !== 'object' || typeof input.name !== 'string' || !input.name.trim()) {
+    const errorMsg = 'Invalid input: "name" parameter is required and must be a non-empty string.';
     activeCallbacks?.onAddAgentActivity({
       tool: 'search_medication',
       status: 'error',
-      summary: 'Search failed: missing or invalid "query" parameter.',
-      params: input && typeof input === 'object' ? input : { query: String(rawQuery ?? '') },
+      summary: 'Search failed: missing or invalid medication name.',
+      params: input,
       result: { error: errorMsg }
     });
     return {
@@ -304,92 +214,101 @@ export async function handleSearchMedication(input: any) {
     };
   }
 
+  const query = input.name.trim();
+
   try {
-    // 1. Query real live RxNorm & FDA directories
+    // 1. Call existing SafeDose medication search functions
     const [suggestions, fdaInfo] = await Promise.all([
-      searchRxNormDrugs(sanitizedQuery).catch(() => []),
-      fetchDrugInfoFromFDA(sanitizedQuery).catch(() => null)
+      searchRxNormDrugs(query).catch(() => []),
+      fetchDrugInfoFromFDA(query).catch(() => null)
     ]);
 
-    // 2. Query currently confirmed cabinet medications
+    // 2. Check currently confirmed cabinet medications
     const currentMeds = activeCallbacks?.getMedications() || [];
     const inCabinetMatches = currentMeds.filter(
       m =>
-        m.drugName.toLowerCase().includes(sanitizedQuery.toLowerCase()) ||
-        (m.genericName && m.genericName.toLowerCase().includes(sanitizedQuery.toLowerCase()))
+        m.drugName.toLowerCase().includes(query.toLowerCase()) ||
+        (m.genericName && m.genericName.toLowerCase().includes(query.toLowerCase()))
     );
 
-    const cabinetSummary = inCabinetMatches.map(m => ({
-      id: m.id,
-      drugName: m.drugName,
-      genericName: m.genericName || m.drugName,
-      dosage: `${m.dosage} ${m.dosageUnit}`.trim(),
-      frequency: m.frequency,
-      active: m.active
-    }));
-
-    // 3. Update existing medication-results UI if available
-    activeCallbacks?.onSearchMedicationUI?.(sanitizedQuery, {
-      query: sanitizedQuery,
-      inCabinetMatches: cabinetSummary,
-      suggestions: suggestions.slice(0, 5)
-    });
-
-    // 4. Log real external tool execution to Agent Activity panel
-    activeCallbacks?.onAddAgentActivity({
-      tool: 'search_medication',
-      status: 'success',
-      summary: `Searched for "${sanitizedQuery}": ${inCabinetMatches.length} in cabinet, ${suggestions.length} RxNorm suggestions found.`,
-      params: { query: sanitizedQuery },
-      result: {
-        foundInCabinet: inCabinetMatches.length > 0,
-        inCabinetCount: inCabinetMatches.length,
-        suggestionCount: suggestions.length,
-        hasFdaDetails: Boolean(fdaInfo)
-      }
-    });
-
-    // 5. Return structured medication information (READ-ONLY)
-    return {
-      status: 'success',
-      query: sanitizedQuery,
+    const results = {
+      query,
       foundInCabinet: inCabinetMatches.length > 0,
-      inCabinetMatches: cabinetSummary,
-      suggestions: suggestions.slice(0, 5),
+      cabinetMatches: inCabinetMatches.map(m => ({
+        id: m.id,
+        drugName: m.drugName,
+        genericName: m.genericName || m.drugName,
+        dosage: `${m.dosage} ${m.dosageUnit}`.trim(),
+        frequency: m.frequency,
+        active: m.active
+      })),
+      rxNormSuggestions: suggestions.slice(0, 5),
       fdaDetails: fdaInfo
         ? {
             brandName: fdaInfo.brandName,
             genericName: fdaInfo.genericName,
             drugClass: fdaInfo.drugClass,
-            warnings: fdaInfo.warnings?.slice(0, 3) || []
+            warnings: fdaInfo.warnings?.slice(0, 2) || []
           }
-        : null,
-      disclaimer: 'Read-only search data. Medication changes require human clinician or pharmacist action.'
+        : null
+    };
+
+    // 3. Update existing medication-results UI
+    activeCallbacks?.onSearchMedicationUI?.(query, results);
+
+    // 4. Add visible Agent Activity entry
+    activeCallbacks?.onAddAgentActivity({
+      tool: 'search_medication',
+      status: 'success',
+      summary: `Searched for "${query}": ${
+        inCabinetMatches.length > 0 ? `${inCabinetMatches.length} in cabinet, ` : ''
+      }${suggestions.length} RxNorm suggestions found.`,
+      params: { name: query },
+      result: {
+        foundInCabinet: inCabinetMatches.length > 0,
+        suggestionCount: suggestions.length,
+        hasFdaDetails: Boolean(fdaInfo)
+      }
+    });
+
+    // 5. Return concise JSON
+    return {
+      status: 'success',
+      medicationName: query,
+      results,
+      disclaimer: 'Informational only. Not a medical prescription or diagnostic evaluation.'
     };
   } catch (err: any) {
     const errorMsg = `Medication search error: ${err?.message || 'Failed to query drug directory'}`;
     activeCallbacks?.onAddAgentActivity({
       tool: 'search_medication',
       status: 'error',
-      summary: `Search error for "${sanitizedQuery}".`,
-      params: { query: sanitizedQuery },
+      summary: `Search error for "${query}".`,
+      params: { name: query },
       result: { error: errorMsg }
     });
     return {
       status: 'error',
-      query: sanitizedQuery,
+      medicationName: query,
       message: errorMsg
     };
   }
 }
 
 /**
- * Handler for get_current_regimen tool.
- * Input: {}
+ * Handler for get_current_regimen tool
  */
-export async function handleGetCurrentRegimen(input: any = {}) {
+async function handleGetCurrentRegimen(input: any) {
+  // Validate that no unexpected required parameters are missing
+  if (input && typeof input !== 'object') {
+    return {
+      status: 'error',
+      message: 'Invalid parameters: expected empty object.'
+    };
+  }
+
   try {
-    // 1. Read real live medications currently displayed in user's SafeDose cabinet
+    // 1. Read existing medication/regimen state
     const currentMeds = activeCallbacks?.getMedications() || [];
     const regimen = currentMeds.map(m => ({
       id: m.id,
@@ -402,10 +321,10 @@ export async function handleGetCurrentRegimen(input: any = {}) {
       active: m.active
     }));
 
-    // 2. Update visible UI if callback provided
+    // 2. Update visible UI or Agent Activity panel
     activeCallbacks?.onViewRegimenUI?.();
 
-    // 3. Log real execution to Agent Activity panel
+    // 3. Add visible Agent Activity entry
     activeCallbacks?.onAddAgentActivity({
       tool: 'get_current_regimen',
       status: 'success',
@@ -414,13 +333,12 @@ export async function handleGetCurrentRegimen(input: any = {}) {
       result: { totalMedications: regimen.length }
     });
 
-    // 4. Return structured regimen JSON
+    // 4. Return concise JSON
     return {
       status: 'success',
       totalCount: regimen.length,
       regimen,
-      timestamp: new Date().toISOString(),
-      notice: 'Current cabinet regimen. Read-only: agents cannot modify active medications.'
+      notice: 'Active confirmed regimen. No medical changes should be made without clinician review.'
     };
   } catch (err: any) {
     const errorMsg = `Failed to read regimen: ${err?.message || 'State access failure'}`;
@@ -428,7 +346,6 @@ export async function handleGetCurrentRegimen(input: any = {}) {
       tool: 'get_current_regimen',
       status: 'error',
       summary: 'Failed to retrieve cabinet regimen.',
-      params: input || {},
       result: { error: errorMsg }
     });
     return {
@@ -439,28 +356,44 @@ export async function handleGetCurrentRegimen(input: any = {}) {
 }
 
 /**
- * Handler for check_regimen_safety tool.
- * Input: { "candidateMedication": "string" }
+ * Handler for check_regimen_safety tool
  */
-export async function handleCheckRegimenSafety(input: any) {
-  // Extract and sanitize candidateMedication parameter (fallback to medicationName if passed)
-  const rawCandidate = input && typeof input === 'object' ? (input.candidateMedication ?? input.medicationName ?? input.query) : input;
-  const sanitizedCandidate = typeof rawCandidate === 'string' ? rawCandidate.trim().slice(0, 128) : '';
+async function handleCheckRegimenSafety(input: any) {
+  // Input validation
+  if (input && typeof input === 'object') {
+    if (
+      input.medicationName !== undefined &&
+      (typeof input.medicationName !== 'string' || !input.medicationName.trim())
+    ) {
+      const errorMsg = 'Invalid input: "medicationName" must be a non-empty string when provided.';
+      activeCallbacks?.onAddAgentActivity({
+        tool: 'check_regimen_safety',
+        status: 'error',
+        summary: 'Safety check failed: invalid medicationName.',
+        params: input,
+        result: { error: errorMsg }
+      });
+      return { status: 'error', message: errorMsg };
+    }
 
-  if (!sanitizedCandidate) {
-    const errorMsg = 'Invalid input: "candidateMedication" parameter is required and must be a non-empty string.';
-    activeCallbacks?.onAddAgentActivity({
-      tool: 'check_regimen_safety',
-      status: 'error',
-      summary: 'Safety check failed: missing "candidateMedication" parameter.',
-      params: input && typeof input === 'object' ? input : { candidateMedication: String(rawCandidate ?? '') },
-      result: { error: errorMsg }
-    });
-    return {
-      status: 'error',
-      message: errorMsg
-    };
+    if (
+      input.includeFoodAndSupplements !== undefined &&
+      typeof input.includeFoodAndSupplements !== 'boolean'
+    ) {
+      const errorMsg = 'Invalid input: "includeFoodAndSupplements" must be a boolean value.';
+      activeCallbacks?.onAddAgentActivity({
+        tool: 'check_regimen_safety',
+        status: 'error',
+        summary: 'Safety check failed: invalid includeFoodAndSupplements parameter.',
+        params: input,
+        result: { error: errorMsg }
+      });
+      return { status: 'error', message: errorMsg };
+    }
   }
+
+  const candidateMed = input?.medicationName?.trim() || null;
+  const checkFood = input?.includeFoodAndSupplements ?? true;
 
   try {
     const currentMeds = activeCallbacks?.getMedications() || [];
@@ -473,30 +406,72 @@ export async function handleCheckRegimenSafety(input: any) {
       clinicalReviewAction: string;
     }> = [];
 
-    // Evaluate candidate medication against each active medication in the cabinet
-    for (const med of activeMeds) {
-      const interaction = detectLocalInteraction(sanitizedCandidate, med.drugName);
-      if (interaction && interaction.severity !== 'safe') {
-        findings.push({
-          drugPair: [sanitizedCandidate, med.drugName],
-          severity: interaction.severity,
-          mechanism: interaction.mechanism,
-          clinicalReviewAction: interaction.actionRequired
-        });
+    if (candidateMed) {
+      // Test candidate medication against active regimen
+      for (const med of activeMeds) {
+        const local = detectLocalInteraction(candidateMed, med.drugName);
+        if (local) {
+          findings.push({
+            drugPair: [candidateMed, med.drugName],
+            severity: local.severity,
+            mechanism: local.mechanism,
+            clinicalReviewAction: local.actionRequired
+          });
+        }
       }
-    }
 
-    // Also check standard high-risk food/supplement agents
-    const foodAgents = ['grapefruit', 'alcohol', 'calcium', 'potassium', 'st johns wort'];
-    for (const food of foodAgents) {
-      const foodConflict = detectLocalInteraction(sanitizedCandidate, food);
-      if (foodConflict && foodConflict.severity !== 'safe') {
-        findings.push({
-          drugPair: [sanitizedCandidate, food],
-          severity: foodConflict.severity,
-          mechanism: foodConflict.mechanism,
-          clinicalReviewAction: foodConflict.actionRequired
-        });
+      // Check food/supplement interactions for the candidate if requested
+      if (checkFood) {
+        const foodAgents = ['grapefruit', 'alcohol', 'calcium', 'potassium'];
+        for (const food of foodAgents) {
+          const foodConflict = detectLocalInteraction(candidateMed, food);
+          if (foodConflict) {
+            findings.push({
+              drugPair: [candidateMed, food],
+              severity: foodConflict.severity,
+              mechanism: foodConflict.mechanism,
+              clinicalReviewAction: foodConflict.actionRequired
+            });
+          }
+        }
+      }
+    } else {
+      // Evaluate all pairwise combinations of the active regimen
+      for (let i = 0; i < activeMeds.length; i++) {
+        for (let j = i + 1; j < activeMeds.length; j++) {
+          const drugA = activeMeds[i].drugName;
+          const drugB = activeMeds[j].drugName;
+          const local = detectLocalInteraction(drugA, drugB);
+          if (local && local.severity !== 'safe') {
+            findings.push({
+              drugPair: [drugA, drugB],
+              severity: local.severity,
+              mechanism: local.mechanism,
+              clinicalReviewAction: local.actionRequired
+            });
+          }
+        }
+      }
+
+      // Also include existing verified interactions from state
+      const stateInteractions = activeCallbacks?.getInteractions() || [];
+      for (const item of stateInteractions) {
+        if (item.dismissed || item.severity === 'safe') continue;
+        const exists = findings.some(
+          f =>
+            (f.drugPair[0].toLowerCase() === item.drugAName.toLowerCase() &&
+              f.drugPair[1].toLowerCase() === item.drugBName.toLowerCase()) ||
+            (f.drugPair[0].toLowerCase() === item.drugBName.toLowerCase() &&
+              f.drugPair[1].toLowerCase() === item.drugAName.toLowerCase())
+        );
+        if (!exists) {
+          findings.push({
+            drugPair: [item.drugAName, item.drugBName],
+            severity: item.severity,
+            mechanism: item.mechanism,
+            clinicalReviewAction: item.actionRequired
+          });
+        }
       }
     }
 
@@ -505,38 +480,40 @@ export async function handleCheckRegimenSafety(input: any) {
       activeCallbacks.onRecalculateInteractions().catch(() => {});
     }
 
+    // Read current safety score
     const safetyScore = activeCallbacks?.getSafetyScore();
 
-    // Update safety UI
+    // 2. Update existing safety-findings UI
     activeCallbacks?.onViewSafetyFindingsUI?.();
 
+    // 3. Add visible Agent Activity entry
     const criticalCount = findings.filter(
       f => f.severity === 'critical' || f.severity === 'deadly'
     ).length;
 
-    // Log real tool execution to Agent Activity panel
     activeCallbacks?.onAddAgentActivity({
       tool: 'check_regimen_safety',
       status: 'success',
-      summary: `Checked "${sanitizedCandidate}" against ${activeMeds.length} active meds: ${findings.length} findings (${criticalCount} critical).`,
-      params: { candidateMedication: sanitizedCandidate },
+      summary: candidateMed
+        ? `Checked "${candidateMed}" against regimen: ${findings.length} findings (${criticalCount} critical).`
+        : `Regimen safety review: ${findings.length} findings (${criticalCount} critical).`,
+      params: { medicationName: candidateMed, includeFoodAndSupplements: checkFood },
       result: {
-        candidateMedication: sanitizedCandidate,
         totalFindings: findings.length,
         criticalCount,
         safetyScore: safetyScore?.score
       }
     });
 
-    // Return structured interaction results
+    // 4. Return concise JSON
     return {
       status: 'success',
-      candidateMedication: sanitizedCandidate,
-      comparedAgainstCount: activeMeds.length,
+      evaluationTarget: candidateMed || 'full_active_regimen',
+      safetyScore: safetyScore?.score ?? 85,
       findingsCount: findings.length,
       findings,
-      safetyScore: safetyScore?.score ?? 100,
-      disclaimer: 'Potential interaction and timing findings to review with a qualified clinician or pharmacist. Read-only clinical decision support. AI agents cannot prescribe or alter medication.'
+      disclaimer:
+        'Potential interaction and timing findings to review with a qualified clinician or pharmacist. Does not diagnose, prescribe, adjust dosage, recommend stopping medicine, or guarantee safety.'
     };
   } catch (err: any) {
     const errorMsg = `Safety check error: ${err?.message || 'Analysis failure'}`;
@@ -544,73 +521,48 @@ export async function handleCheckRegimenSafety(input: any) {
       tool: 'check_regimen_safety',
       status: 'error',
       summary: 'Regimen safety assessment encountered an error.',
-      params: { candidateMedication: sanitizedCandidate },
+      params: input,
       result: { error: errorMsg }
     });
     return {
       status: 'error',
-      candidateMedication: sanitizedCandidate,
       message: errorMsg
     };
   }
 }
 
 /**
- * Directly executes a WebMCP tool by name with input parameters.
- * Invoked by UI test triggers in Agent Activity Panel or direct developer verification.
- */
-export async function executeWebMCPTool(name: string, input: any = {}): Promise<any> {
-  if (name === 'search_medication') {
-    return await handleSearchMedication(input);
-  }
-  if (name === 'get_current_regimen') {
-    return await handleGetCurrentRegimen(input);
-  }
-  if (name === 'check_regimen_safety') {
-    return await handleCheckRegimenSafety(input);
-  }
-
-  throw new Error(`WebMCP tool "${name}" not found.`);
-}
-
-/**
- * Inspection helper on window.__safedose_webmcp for developer verification.
- * Does NOT mock document.modelContext or fake registration.
+ * Setup testing bridge on window for manual Chrome verification
  */
 function setupTestingBridge() {
   if (typeof window === 'undefined') return;
-
   (window as any).__safedose_webmcp = {
     isRegistered: isWebMCPRegistered,
     isAvailable: isWebMCPAvailable(),
-    registeredHosts: getModelContexts().length,
     tools: {
       search_medication: (params: any) => handleSearchMedication(params),
       get_current_regimen: (params?: any) => handleGetCurrentRegimen(params || {}),
       check_regimen_safety: (params?: any) => handleCheckRegimenSafety(params || {})
+    },
+    // Helper to simulate document.modelContext in standard Chrome DevTools
+    simulateModelContext: () => {
+      const mockRegisteredTools: Record<string, any> = {};
+      (document as any).modelContext = {
+        registerTool: (toolDef: any) => {
+          mockRegisteredTools[toolDef.name] = toolDef;
+          console.log(`[WebMCP Mock] Registered tool: ${toolDef.name}`, toolDef);
+        },
+        getTools: () => Object.values(mockRegisteredTools),
+        executeTool: async (name: string, input: any) => {
+          if (!mockRegisteredTools[name]) throw new Error(`Tool not found: ${name}`);
+          return mockRegisteredTools[name].execute(input);
+        }
+      };
+      isWebMCPRegistered = false;
+      if (activeCallbacks) {
+        registerWebMCP(activeCallbacks);
+      }
+      return 'document.modelContext simulated successfully. WebMCP is now ready.';
     }
   };
-}
-
-/**
- * Returns the list of declared WebMCP tool signatures.
- */
-export function getRegisteredWebMCPTools(): Array<{ name: string; description: string; input: string }> {
-  return [
-    {
-      name: 'search_medication',
-      description: 'Search SafeDose medication data and return structured medication information.',
-      input: '{ query: string }'
-    },
-    {
-      name: 'get_current_regimen',
-      description: 'Return the medications currently displayed in the user\'s SafeDose cabinet.',
-      input: '{}'
-    },
-    {
-      name: 'check_regimen_safety',
-      description: 'Check candidate medication against the current SafeDose regimen for interactions.',
-      input: '{ candidateMedication: string }'
-    }
-  ];
 }

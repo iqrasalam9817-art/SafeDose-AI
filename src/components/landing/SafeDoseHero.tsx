@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Menu, X, Plus, Shield, Activity, Pill, LayoutDashboard, Cpu } from 'lucide-react';
+import { ArrowRight, Menu, X, Scan, Shield, Activity } from 'lucide-react';
 import { useApp } from '../../stores/AppContext';
 
 // SafeDose AI Premium Landing Component
 export default function SafeDoseHero() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const { setView, setShowAddMedModal, webmcpStatus, setShowAgentActivityPanel } = useApp();
+  const { setView, setShowAddMedModal } = useApp();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -14,7 +14,12 @@ export default function SafeDoseHero() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleAddMedication = () => {
+  const handleOpenScanner = () => {
+    setShowAddMedModal(true);
+    setView('dashboard');
+  };
+
+  const handleManualEntry = () => {
     setShowAddMedModal(true);
     setView('dashboard');
   };
@@ -77,56 +82,33 @@ export default function SafeDoseHero() {
           </div>
           
           <div className="hidden md:flex items-center gap-6">
-            <button
-              onClick={() => setView('dashboard')}
-              className="text-sm font-medium text-white/80 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
-            >
-              <LayoutDashboard className="w-4 h-4 text-cyan-400" />
-              Dashboard
-            </button>
-            <button
-              onClick={() => setView('medications')}
-              className="text-sm font-medium text-white/80 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
-            >
-              <Pill className="w-4 h-4 text-emerald-400" />
-              My Medications
-            </button>
+            {['Scanner', 'Database', 'Safety', 'About'].map((item) => (
+              <a 
+                key={item} 
+                href={`#${item.toLowerCase()}`} 
+                onClick={(e) => {
+                  if (item === 'Database' || item === 'Scanner') {
+                    e.preventDefault();
+                    setView('medications');
+                  } else if (item === 'Safety') {
+                    e.preventDefault();
+                    setView('interactions');
+                  }
+                }}
+                className="text-sm text-white/80 hover:text-white transition-colors"
+              >
+                {item}
+              </a>
+            ))}
           </div>
         </div>
 
-        <div className="hidden md:flex items-center gap-3">
-          {/* WebMCP Status Badge & Direct Trigger */}
-          <button
-            onClick={() => {
-              setView('dashboard');
-              setShowAgentActivityPanel(true);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-              webmcpStatus === 'ready'
-                ? 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-400 shadow-sm shadow-emerald-500/10'
-                : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-400'
-            }`}
-            title="WebMCP Imperative Tool Protocol — Agent Activity & Tools"
-          >
-            <span
-              className={`w-2 h-2 rounded-full shrink-0 ${
-                webmcpStatus === 'ready' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'
-              }`}
-            />
-            <span className="font-bold">WebMCP</span>
-            <span className={`text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-md ${
-              webmcpStatus === 'ready' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-slate-400'
-            }`}>
-              {webmcpStatus === 'ready' ? 'Agent Ready' : 'Unavailable'}
-            </span>
-          </button>
-
+        <div className="hidden md:block">
           <button 
-            onClick={handleAddMedication}
-            className="rounded-xl bg-white px-5 py-2 text-sm font-semibold text-black hover:scale-105 transition-transform cursor-pointer inline-flex items-center gap-1.5 shadow-lg shadow-white/10"
+            onClick={handleOpenScanner}
+            className="rounded-lg bg-white px-5 py-2 text-sm font-medium text-black hover:scale-105 transition-transform cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            Add Medication
+            Open Scanner
           </button>
         </div>
 
@@ -145,49 +127,31 @@ export default function SafeDoseHero() {
       {/* Mobile Menu */}
       <div className={`fixed inset-x-0 top-0 z-20 bg-black/98 backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${mobileMenuOpen ? 'h-screen opacity-100' : 'h-0 opacity-0 pointer-events-none'}`}>
         <div className={`flex h-full flex-col justify-center px-8 transition-all duration-500 delay-100 ${mobileMenuOpen ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}>
+          {['Scanner', 'Database', 'Safety', 'About'].map((item) => (
+            <a 
+              key={item} 
+              href={`#${item.toLowerCase()}`} 
+              onClick={() => {
+                setMobileMenuOpen(false);
+                if (item === 'Database' || item === 'Scanner') {
+                  setView('medications');
+                } else if (item === 'Safety') {
+                  setView('interactions');
+                }
+              }}
+              className="text-3xl font-medium text-white/90 hover:text-white py-3"
+            >
+              {item}
+            </a>
+          ))}
           <button 
             onClick={() => {
               setMobileMenuOpen(false);
-              setView('dashboard');
-            }}
-            className="text-3xl font-medium text-white/90 hover:text-white py-3 text-left flex items-center gap-3 cursor-pointer"
-          >
-            <LayoutDashboard className="w-6 h-6 text-cyan-400" />
-            Dashboard
-          </button>
-          <button 
-            onClick={() => {
-              setMobileMenuOpen(false);
-              setView('medications');
-            }}
-            className="text-3xl font-medium text-white/90 hover:text-white py-3 text-left flex items-center gap-3 cursor-pointer"
-          >
-            <Pill className="w-6 h-6 text-emerald-400" />
-            My Medications
-          </button>
-          <button 
-            onClick={() => {
-              setMobileMenuOpen(false);
-              setView('dashboard');
-              setShowAgentActivityPanel(true);
-            }}
-            className="text-3xl font-medium text-emerald-400 hover:text-emerald-300 py-3 text-left flex items-center gap-3 cursor-pointer"
-          >
-            <Cpu className="w-6 h-6 text-emerald-400" />
-            <span>WebMCP Agent</span>
-            <span className="text-xs uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              Ready
-            </span>
-          </button>
-          <button 
-            onClick={() => {
-              setMobileMenuOpen(false);
-              handleAddMedication();
+              handleOpenScanner();
             }} 
-            className="mt-6 rounded-xl bg-white px-8 py-3.5 text-base font-semibold text-black hover:scale-105 transition-transform w-fit cursor-pointer inline-flex items-center gap-2"
+            className="mt-6 rounded-full bg-white px-8 py-3.5 text-base font-medium text-black hover:scale-105 transition-transform w-fit cursor-pointer"
           >
-            <Plus className="w-5 h-5" />
-            Add Medication
+            Open Scanner
           </button>
         </div>
       </div>
@@ -211,23 +175,23 @@ export default function SafeDoseHero() {
         {/* Bottom Section */}
         <div className="space-y-6">
           <p className="text-sm sm:text-base md:text-lg leading-relaxed text-white/60 max-w-sm sm:max-w-lg animate-fadeSlideUp" style={{ animationDelay: '0.7s' }}>
-            Instant medication verification through advanced OCR and FDA monographs. Zero cloud API exposure. Just pure clinical accuracy with FDA-grade data.
+            Instant medication verification through advanced OCR. No cloud APIs. No privacy risks. Just pure clinical accuracy with FDA-grade data.
           </p>
           
           <div className="flex flex-wrap gap-4 animate-fadeSlideUp" style={{ animationDelay: '0.9s' }}>
             <button 
-              onClick={handleAddMedication}
-              className="group rounded-xl bg-white px-6 py-3 text-sm font-semibold text-black hover:scale-105 transition-transform inline-flex items-center gap-2 cursor-pointer shadow-lg shadow-white/10"
+              onClick={handleOpenScanner}
+              className="group rounded-lg bg-white px-6 py-3 text-sm font-medium text-black hover:scale-105 transition-transform inline-flex items-center gap-2 cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
-              Add Medication
+              <Scan className="w-4 h-4" />
+              Scan Medication
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </button>
             <button 
-              onClick={() => setView('dashboard')}
-              className="rounded-xl px-6 py-3 text-sm font-semibold text-white border border-white/20 hover:bg-white/5 transition-colors cursor-pointer"
+              onClick={handleManualEntry}
+              className="rounded-lg px-6 py-3 text-sm font-medium text-white border border-white/20 hover:bg-white/5 transition-colors cursor-pointer"
             >
-              Open Dashboard
+              Manual Entry
             </button>
           </div>
 
