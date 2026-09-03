@@ -82,9 +82,8 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({ onOpenMobileSidebar })
               className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-slate-200 text-xs font-medium transition-all cursor-pointer"
               title="WebMCP unavailable — manual controls active. Click to view Agent Activity."
             >
-              <span className="w-2 h-2 rounded-full bg-slate-500" />
-              <span className="hidden xl:inline">WebMCP unavailable — manual controls active</span>
-              <span className="xl:hidden">WebMCP unavailable</span>
+              <span className="w-2 h-2 rounded-full bg-slate-500 shrink-0" />
+              <span>WebMCP unavailable — manual controls active</span>
               {agentActivities.length > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full bg-white/10 text-[10px] font-bold text-slate-300">
                   {agentActivities.length}

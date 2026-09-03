@@ -8,6 +8,23 @@ import {
 
 export type WebMCPStatus = 'ready' | 'unavailable';
 
+declare global {
+  interface Document {
+    modelContext?: {
+      registerTool: (toolDef: {
+        name: string;
+        description: string;
+        inputSchema: Record<string, any>;
+        annotations?: { readOnlyHint?: boolean; [key: string]: any };
+        untrustedContentHint?: boolean;
+        execute: (input: any) => Promise<any> | any;
+        [key: string]: any;
+      }) => void;
+      [key: string]: any;
+    };
+  }
+}
+
 export interface WebMCPCallbacks {
   getMedications: () => Medication[];
   getInteractions: () => Interaction[];
@@ -28,8 +45,7 @@ let activeCallbacks: WebMCPCallbacks | null = null;
  */
 export function isWebMCPAvailable(): boolean {
   if (typeof document === 'undefined') return false;
-  const modelContext = (document as any).modelContext;
-  return Boolean(modelContext && typeof modelContext.registerTool === 'function');
+  return Boolean(document.modelContext && typeof document.modelContext.registerTool === 'function');
 }
 
 /**
@@ -50,9 +66,8 @@ export function registerWebMCP(callbacks: WebMCPCallbacks): boolean {
     return true;
   }
 
-  // Feature detection as required
-  const modelContext = (document as any).modelContext;
-  if (!modelContext?.registerTool) {
+  // Feature detection for the browser-provided WebMCP Imperative API
+  if (typeof document === 'undefined' || !document.modelContext || typeof document.modelContext.registerTool !== 'function') {
     // Also expose a local testing bridge on window for manual Chrome verification
     setupTestingBridge();
     return false;
@@ -62,7 +77,7 @@ export function registerWebMCP(callbacks: WebMCPCallbacks): boolean {
     /* -------------------------------------------------------------
      * Tool 1: search_medication
      * ------------------------------------------------------------- */
-    modelContext.registerTool({
+    document.modelContext.registerTool({
       name: 'search_medication',
       description: 'Search SafeDose-AI for a medication by brand or generic name.',
       inputSchema: {
@@ -88,7 +103,7 @@ export function registerWebMCP(callbacks: WebMCPCallbacks): boolean {
     /* -------------------------------------------------------------
      * Tool 2: get_current_regimen
      * ------------------------------------------------------------- */
-    modelContext.registerTool({
+    document.modelContext.registerTool({
       name: 'get_current_regimen',
       description: 'Show the currently confirmed medications in the SafeDose-AI medication cabinet.',
       inputSchema: {
@@ -108,7 +123,7 @@ export function registerWebMCP(callbacks: WebMCPCallbacks): boolean {
     /* -------------------------------------------------------------
      * Tool 3: check_regimen_safety
      * ------------------------------------------------------------- */
-    modelContext.registerTool({
+    document.modelContext.registerTool({
       name: 'check_regimen_safety',
       description: 'Check the current medication regimen for potential interaction and timing findings to review with a qualified clinician or pharmacist.',
       inputSchema: {

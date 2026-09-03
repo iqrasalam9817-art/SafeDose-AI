@@ -20,6 +20,7 @@ import {
 } from '../data/defaultData';
 import { detectLocalInteraction } from '../lib/fda';
 import { analyzeInteractionWithGemini } from '../lib/gemini';
+import { isWebMCPAvailable } from '../lib/webmcp';
 
 const STORAGE_KEY = 'safedose_app_state_v1';
 
@@ -111,9 +112,7 @@ export function calculateSafetyScoreFromInteractions(interactions: Interaction[]
 
 // Initial state constructor
 const isInitialWebMCPAvailable = (): 'ready' | 'unavailable' => {
-  if (typeof document === 'undefined') return 'unavailable';
-  const modelContext = (document as any).modelContext;
-  return modelContext && typeof modelContext.registerTool === 'function' ? 'ready' : 'unavailable';
+  return isWebMCPAvailable() ? 'ready' : 'unavailable';
 };
 
 export function getInitialAppState(): AppState {
