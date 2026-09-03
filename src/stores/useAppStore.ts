@@ -7,7 +7,8 @@ import {
   ScheduleItem,
   SymptomLog,
   CaregiverLink,
-  ChatMessage
+  ChatMessage,
+  AgentActivityItem
 } from '../types';
 import {
   DEFAULT_PROFILE,
@@ -55,6 +56,10 @@ export interface AppState {
   activeDrugDetail: Medication | null;
   activeInteractionDetail: Interaction | null;
   adherencePercentage: number;
+  agentActivities: AgentActivityItem[];
+  webmcpStatus: 'ready' | 'unavailable';
+  medicationSearchQuery: string;
+  showAgentActivityPanel: boolean;
 }
 
 export function calculateSafetyScoreFromInteractions(interactions: Interaction[]): SafetyScore {
@@ -105,6 +110,12 @@ export function calculateSafetyScoreFromInteractions(interactions: Interaction[]
 }
 
 // Initial state constructor
+const isInitialWebMCPAvailable = (): 'ready' | 'unavailable' => {
+  if (typeof document === 'undefined') return 'unavailable';
+  const modelContext = (document as any).modelContext;
+  return modelContext && typeof modelContext.registerTool === 'function' ? 'ready' : 'unavailable';
+};
+
 export function getInitialAppState(): AppState {
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -119,7 +130,11 @@ export function getInitialAppState(): AppState {
           showEmergencyModal: false,
           showAuthModal: false,
           activeDrugDetail: null,
-          activeInteractionDetail: null
+          activeInteractionDetail: null,
+          agentActivities: parsed.agentActivities || [],
+          webmcpStatus: isInitialWebMCPAvailable(),
+          medicationSearchQuery: '',
+          showAgentActivityPanel: false
         };
       } catch (e) {
         console.error('Failed to parse localStorage state:', e);
@@ -156,6 +171,10 @@ export function getInitialAppState(): AppState {
     isAnalyzing: false,
     activeDrugDetail: null,
     activeInteractionDetail: null,
-    adherencePercentage: 89
+    adherencePercentage: 89,
+    agentActivities: [],
+    webmcpStatus: isInitialWebMCPAvailable(),
+    medicationSearchQuery: '',
+    showAgentActivityPanel: false
   };
 }

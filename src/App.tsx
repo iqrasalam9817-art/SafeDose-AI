@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AppProvider, useApp } from './stores/AppContext';
 import { Navbar, Footer } from './components/common/Navbar';
 import { SplashScreen } from './components/common/SplashScreen';
@@ -20,13 +20,103 @@ import { AddMedModal } from './components/modals/AddMedModal';
 import { EmergencyModal } from './components/modals/EmergencyModal';
 import { AuthModal } from './components/auth/AuthModal';
 import { OnboardingWizard } from './components/onboarding/OnboardingWizard';
+import { registerWebMCP, WebMCPCallbacks } from './lib/webmcp';
 
 const MainAppContent: React.FC = () => {
-  const { currentView } = useApp();
+  const {
+    currentView,
+    medications,
+    interactions,
+    safetyScore,
+    setView,
+    setMedicationSearchQuery,
+    addAgentActivity,
+    recalculateAllInteractions,
+    setWebmcpStatus
+  } = useApp();
   const [showSplash, setShowSplash] = useState(true);
 
+  // Keep a mutable ref of the latest state and actions for WebMCP tools
+  const callbacksRef = useRef<WebMCPCallbacks>({
+    getMedications: () => medications,
+    getInteractions: () => interactions,
+    getSafetyScore: () => safetyScore,
+    onSearchMedicationUI: (name) => {
+      setMedicationSearchQuery(name);
+      setView('medications');
+    },
+    onViewRegimenUI: () => {
+      setView('medications');
+    },
+    onViewSafetyFindingsUI: () => {
+      setView('interactions');
+    },
+    onAddAgentActivity: (activity) => {
+      addAgentActivity(activity);
+    },
+    onRecalculateInteractions: async () => {
+      await recalculateAllInteractions();
+    }
+  });
+
+  // Always keep callbacksRef synced with the freshest state
+  callbacksRef.current = {
+    getMedications: () => medications,
+    getInteractions: () => interactions,
+    getSafetyScore: () => safetyScore,
+    onSearchMedicationUI: (name) => {
+      setMedicationSearchQuery(name);
+      setView('medications');
+    },
+    onViewRegimenUI: () => {
+      setView('medications');
+    },
+    onViewSafetyFindingsUI: () => {
+      setView('interactions');
+    },
+    onAddAgentActivity: (activity) => {
+      addAgentActivity(activity);
+    },
+    onRecalculateInteractions: async () => {
+      await recalculateAllInteractions();
+    }
+  };
+
+  const setWebmcpStatusRef = useRef(setWebmcpStatus);
+  setWebmcpStatusRef.current = setWebmcpStatus;
+
+  // Register WebMCP tools exactly once on mount
+  useEffect(() => {
+    const success = registerWebMCP({
+      getMedications: () => callbacksRef.current.getMedications(),
+      getInteractions: () => callbacksRef.current.getInteractions(),
+      getSafetyScore: () => callbacksRef.current.getSafetyScore(),
+      onSearchMedicationUI: (name, results) => {
+        callbacksRef.current.onSearchMedicationUI?.(name, results);
+      },
+      onViewRegimenUI: () => {
+        callbacksRef.current.onViewRegimenUI?.();
+      },
+      onViewSafetyFindingsUI: () => {
+        callbacksRef.current.onViewSafetyFindingsUI?.();
+      },
+      onAddAgentActivity: (activity) => {
+        callbacksRef.current.onAddAgentActivity(activity);
+      },
+      onRecalculateInteractions: async () => {
+        await callbacksRef.current.onRecalculateInteractions?.();
+      }
+    });
+
+    setWebmcpStatusRef.current(success ? 'ready' : 'unavailable');
+  }, []);
+
+  const handleSplashComplete = useCallback(() => {
+    setShowSplash(false);
+  }, []);
+
   if (showSplash) {
-    return <SplashScreen onComplete={() => setShowSplash(false)} />;
+    return <SplashScreen onComplete={handleSplashComplete} />;
   }
 
   return (

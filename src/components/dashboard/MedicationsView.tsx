@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../stores/AppContext';
 import { Medication } from '../../types';
 import {
@@ -25,11 +25,14 @@ export const MedicationsView: React.FC = () => {
     activeDrugDetail,
     setActiveDrugDetail,
     removeMedication,
-    interactions
+    interactions,
+    medicationSearchQuery,
+    setMedicationSearchQuery
   } = useApp();
 
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
-  const [searchQuery, setSearchQuery] = useState('');
+  const searchQuery = medicationSearchQuery || '';
+  const setSearchQuery = (val: string) => setMedicationSearchQuery(val);
   const [selectedClass, setSelectedClass] = useState<string>('All');
 
   // Extract unique drug classes
@@ -114,10 +117,25 @@ export const MedicationsView: React.FC = () => {
           <input
             type="text"
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={e => {
+              setSearchQuery(e.target.value);
+              setMedicationSearchQuery(e.target.value);
+            }}
             placeholder="Search by drug name, generic, or class..."
-            className="w-full pl-11 pr-4 py-2.5 rounded-full bg-white border border-slate-200 text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-900 shadow-xs"
+            className="w-full pl-11 pr-9 py-2.5 rounded-full bg-white border border-slate-200 text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-900 shadow-xs"
           />
+          {searchQuery && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setMedicationSearchQuery('');
+              }}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs font-bold"
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
         {/* Drug Class Pills */}

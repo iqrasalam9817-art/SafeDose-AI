@@ -25,7 +25,8 @@ export const Navbar: React.FC = () => {
     setShowEmergencyModal,
     profile,
     safetyScore,
-    medications
+    medications,
+    webmcpStatus
   } = useApp();
 
   const [scrolled, setScrolled] = useState(false);
@@ -135,6 +136,19 @@ export const Navbar: React.FC = () => {
             <FileHeart className="w-3.5 h-3.5 text-red-600" />
             <span className="hidden sm:inline">Emergency ID</span>
           </button>
+
+          {/* WebMCP Status Indicator */}
+          {webmcpStatus === 'ready' ? (
+            <span className="hidden lg:inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              WebMCP ready
+            </span>
+          ) : (
+            <span className="hidden xl:inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 border border-slate-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+              WebMCP unavailable — manual controls active
+            </span>
+          )}
 
           {currentView === 'landing' ? (
             <>

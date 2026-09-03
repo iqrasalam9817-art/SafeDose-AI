@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GlassSidebar } from './GlassSidebar';
 import { GlassHeader } from './GlassHeader';
+import { AgentActivityPanel } from '../common/AgentActivityPanel';
 
 export function DarkPremiumLayout({ children }: { children: React.ReactNode }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -29,6 +30,9 @@ export function DarkPremiumLayout({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
+
+      {/* WebMCP Agent Activity Side Drawer */}
+      <AgentActivityPanel />
       
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap');

@@ -7,7 +7,9 @@ import {
   Menu,
   ShieldCheck,
   AlertTriangle,
-  Sparkles
+  Sparkles,
+  Activity,
+  Cpu
 } from 'lucide-react';
 
 interface GlassHeaderProps {
@@ -21,7 +23,10 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({ onOpenMobileSidebar })
     setShowEmergencyModal,
     recalculateAllInteractions,
     isAnalyzing,
-    setView
+    setView,
+    webmcpStatus,
+    agentActivities,
+    setShowAgentActivityPanel
   } = useApp();
 
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -54,7 +59,50 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({ onOpenMobileSidebar })
       </div>
 
       {/* Right Header Actions */}
-      <div className="flex items-center gap-2.5 sm:gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* WebMCP Status Indicator */}
+        <div className="flex items-center">
+          {webmcpStatus === 'ready' ? (
+            <button
+              onClick={() => setShowAgentActivityPanel(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold transition-all cursor-pointer shadow-sm shadow-emerald-500/10"
+              title="WebMCP Imperative API is active and tools are registered. Click to view Agent Activity."
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>WebMCP ready</span>
+              {agentActivities.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-[10px] font-bold text-emerald-300">
+                  {agentActivities.length}
+                </span>
+              )}
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowAgentActivityPanel(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-slate-200 text-xs font-medium transition-all cursor-pointer"
+              title="WebMCP unavailable — manual controls active. Click to view Agent Activity."
+            >
+              <span className="w-2 h-2 rounded-full bg-slate-500" />
+              <span className="hidden xl:inline">WebMCP unavailable — manual controls active</span>
+              <span className="xl:hidden">WebMCP unavailable</span>
+              {agentActivities.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-white/10 text-[10px] font-bold text-slate-300">
+                  {agentActivities.length}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* Agent Activity Drawer Trigger */}
+        <button
+          onClick={() => setShowAgentActivityPanel(true)}
+          className="p-2 text-slate-300 hover:text-cyan-400 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 relative transition-colors cursor-pointer"
+          title="Open Agent Activity log"
+        >
+          <Cpu className="w-4 h-4 text-cyan-400" />
+        </button>
+
         {/* Re-analyze / Recalculate */}
         <button
           onClick={recalculateAllInteractions}

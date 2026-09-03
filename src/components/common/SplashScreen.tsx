@@ -104,6 +104,9 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
     };
   }, []);
 
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+
   // Progress timer and text cycler
   useEffect(() => {
     const startTime = Date.now();
@@ -117,7 +120,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
       if (pct >= 100) {
         clearInterval(interval);
         setTimeout(() => {
-          onComplete();
+          onCompleteRef.current();
         }, 300);
       }
     }, 40);
@@ -130,7 +133,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
       clearInterval(interval);
       clearInterval(phraseInterval);
     };
-  }, [onComplete]);
+  }, []);
 
   return (
     <motion.div

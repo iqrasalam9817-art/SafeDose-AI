@@ -1,11 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   AppState,
   getInitialAppState,
   calculateSafetyScoreFromInteractions,
   AppView
 } from './useAppStore';
-import { Medication, Interaction, SymptomLog, CaregiverLink, Profile, ChatMessage, ScheduleItem } from '../types';
+import { Medication, Interaction, SymptomLog, CaregiverLink, Profile, ChatMessage, ScheduleItem, AgentActivityItem } from '../types';
 import { detectLocalInteraction } from '../lib/fda';
 import { analyzeInteractionWithGemini, sendChatMessage as sendGeminiChat } from '../lib/gemini';
 import { DEFAULT_MEDICATIONS, DEFAULT_PROFILE, DEFAULT_INTERACTIONS, DEFAULT_SCHEDULE, DEFAULT_CAREGIVER_LINKS, DEFAULT_SYMPTOM_LOGS } from '../data/defaultData';
@@ -41,6 +41,11 @@ interface AppContextType extends AppState {
   resetAllData: () => void;
   startOnboarding: () => void;
   completeOnboarding: () => void;
+  addAgentActivity: (activity: Omit<AgentActivityItem, 'id' | 'timestamp'>) => void;
+  clearAgentActivities: () => void;
+  setMedicationSearchQuery: (query: string) => void;
+  setWebmcpStatus: (status: 'ready' | 'unavailable') => void;
+  setShowAgentActivityPanel: (show: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -70,19 +75,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [state]);
 
-  const setView = (view: AppView) => {
+  const setView = useCallback((view: AppView) => {
     setState(prev => ({ ...prev, currentView: view }));
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  }, []);
 
-  const setShowAuthModal = (show: boolean) => setState(prev => ({ ...prev, showAuthModal: show }));
-  const setShowAddMedModal = (show: boolean) => setState(prev => ({ ...prev, showAddMedModal: show }));
-  const setShowEmergencyModal = (show: boolean) => setState(prev => ({ ...prev, showEmergencyModal: show }));
-  const setShowOnboarding = (show: boolean) => setState(prev => ({ ...prev, showOnboarding: show }));
-  const setOnboardingStep = (step: number) => setState(prev => ({ ...prev, onboardingStep: step }));
-  const setActiveDrugDetail = (med: Medication | null) => setState(prev => ({ ...prev, activeDrugDetail: med }));
-  const setActiveInteractionDetail = (interaction: Interaction | null) => setState(prev => ({ ...prev, activeInteractionDetail: interaction }));
-  const setIsAuthenticated = (auth: boolean) => setState(prev => ({ ...prev, isAuthenticated: auth }));
+  const setShowAuthModal = useCallback((show: boolean) => setState(prev => ({ ...prev, showAuthModal: show })), []);
+  const setShowAddMedModal = useCallback((show: boolean) => setState(prev => ({ ...prev, showAddMedModal: show })), []);
+  const setShowEmergencyModal = useCallback((show: boolean) => setState(prev => ({ ...prev, showEmergencyModal: show })), []);
+  const setShowOnboarding = useCallback((show: boolean) => setState(prev => ({ ...prev, showOnboarding: show })), []);
+  const setOnboardingStep = useCallback((step: number) => setState(prev => ({ ...prev, onboardingStep: step })), []);
+  const setActiveDrugDetail = useCallback((med: Medication | null) => setState(prev => ({ ...prev, activeDrugDetail: med })), []);
+  const setActiveInteractionDetail = useCallback((interaction: Interaction | null) => setState(prev => ({ ...prev, activeInteractionDetail: interaction })), []);
+  const setIsAuthenticated = useCallback((auth: boolean) => setState(prev => ({ ...prev, isAuthenticated: auth })), []);
 
   const recalculateAllInteractions = async () => {
     setState(prev => ({ ...prev, isAnalyzing: true }));
@@ -364,6 +369,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
+  const addAgentActivity = useCallback((activity: Omit<AgentActivityItem, 'id' | 'timestamp'>) => {
+    const newItem: AgentActivityItem = {
+      ...activity,
+      id: `act-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    };
+    setState(prev => ({
+      ...prev,
+      agentActivities: [newItem, ...(prev.agentActivities || [])].slice(0, 30)
+    }));
+  }, []);
+
+  const clearAgentActivities = useCallback(() => {
+    setState(prev => ({ ...prev, agentActivities: [] }));
+  }, []);
+
+  const setMedicationSearchQuery = useCallback((query: string) => {
+    setState(prev => prev.medicationSearchQuery === query ? prev : ({ ...prev, medicationSearchQuery: query }));
+  }, []);
+
+  const setWebmcpStatus = useCallback((status: 'ready' | 'unavailable') => {
+    setState(prev => prev.webmcpStatus === status ? prev : ({ ...prev, webmcpStatus: status }));
+  }, []);
+
+  const setShowAgentActivityPanel = useCallback((show: boolean) => {
+    setState(prev => prev.showAgentActivityPanel === show ? prev : ({ ...prev, showAgentActivityPanel: show }));
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -395,7 +428,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetAllData: resetToDefaultData,
         resetToDefaultData,
         startOnboarding,
-        completeOnboarding
+        completeOnboarding,
+        addAgentActivity,
+        clearAgentActivities,
+        setMedicationSearchQuery,
+        setWebmcpStatus,
+        setShowAgentActivityPanel
       }}
     >
       {children}

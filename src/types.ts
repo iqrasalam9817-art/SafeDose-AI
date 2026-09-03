@@ -134,3 +134,14 @@ export interface DrugLink {
   severity: SeverityLevel;
   description: string;
 }
+
+export interface AgentActivityItem {
+  id: string;
+  tool: 'search_medication' | 'get_current_regimen' | 'check_regimen_safety';
+  timestamp: string;
+  summary: string;
+  status: 'success' | 'error';
+  params?: Record<string, any>;
+  result?: Record<string, any>;
+}
+
